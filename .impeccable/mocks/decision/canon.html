@@ -1,0 +1,27 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Standardlösung</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#F9FAFB;color:#111827;font:400 15px/1.45 Inter,sans-serif}
+header{height:64px;background:#fff;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;padding:0 48px;font-weight:600;font-size:16px}
+.wrap{width:720px;margin:32px auto;background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:36px 40px}
+h1{font-size:26px;font-weight:600;margin-bottom:6px}.sub{color:#6B7280;margin-bottom:24px}
+h2{font-size:16px;font-weight:600;margin:20px 0 12px}
+.g{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+label{display:block;font-size:13px;font-weight:500;margin-bottom:4px}
+.f{border:1px solid #D1D5DB;border-radius:8px;height:40px;padding:9px 12px}.w{grid-column:span 3}.w2{grid-column:span 2}
+.t{display:flex;flex-wrap:wrap;gap:8px}.c{border:1px solid #D1D5DB;border-radius:8px;padding:8px 14px}.c.on{background:#EFF6FF;border-color:#2563EB;color:#1D4ED8}
+.n{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:10px 14px;margin-top:12px;color:#92400E;font-size:14px}
+.btn{margin-top:26px;background:#2563EB;color:#fff;border-radius:8px;padding:12px 22px;font-weight:600;width:max-content}
+</style></head><body>
+<header>Technikteam</header>
+<div class="wrap"><h1>Veranstaltung anmelden</h1><p class="sub">Bitte so früh wie möglich ausfüllen. Pflichtfelder sind mit * markiert.</p>
+<h2>1 Allgemeine Informationen</h2>
+<div class="g"><div class="w"><label>Titel *</label><div class="f">Sommerkonzert 2027</div></div>
+<div><label>Lehrkraft *</label><div class="f">Frau Hartmann</div></div><div class="w2"><label>E-Mail *</label><div class="f">hartmann@schule.example</div></div>
+<div><label>Datum *</label><div class="f">17.06.2027</div></div><div><label>Beginn *</label><div class="f">18:30</div></div><div><label>Ende *</label><div class="f">21:00</div></div>
+<div class="w"><label>Ort *</label><div class="f">Aula</div></div></div>
+<h2>2 Art der Veranstaltung</h2>
+<div class="t"><span class="c on">Konzert</span><span class="c">Theater</span><span class="c">Vortrag</span><span class="c">Podiumsdiskussion</span><span class="c">Informationsveranstaltung</span><span class="c">Sonstiges</span></div>
+<div class="n">Konzerte: mindestens 4 Wochen vorher. Es sind noch 19 Tage. Senden ist trotzdem möglich.</div>
+<div class="btn">Anmeldung senden</div></div></body></html>

@@ -1,0 +1,51 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Stundenplan</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#fff;color:#1F2A37;font:400 15px/1.35 "Nunito Sans",sans-serif;display:grid;grid-template-columns:520px 1fr}
+.tt{background:#F7F8FA;border-right:1px solid #E1E5EA;padding:32px 28px}
+.tt h1{font-size:22px;font-weight:800;margin-bottom:4px}.tt p{color:#5F6B7A;margin-bottom:20px}
+table{border-collapse:collapse;width:100%;table-layout:fixed;background:#fff}
+th,td{border:1px solid #D6DBE2;height:52px;padding:4px 6px;font-size:12px;vertical-align:top}
+th{background:#EEF1F5;height:32px;font-weight:800;font-size:12px}
+td.h{background:#EEF1F5;font-weight:800;width:62px;text-align:center;vertical-align:middle}
+.b{border-radius:4px;padding:5px 7px;font-weight:800;color:#fff;font-size:12px}
+.p{background:#2F80ED}.g{background:#F2C94C;color:#1F2A37}.a{background:#9B6BF2}.v{background:#EB5757}.ab{background:#27AE60}
+.leg{margin-top:14px;font-size:13px;color:#5F6B7A}
+main{padding:32px 56px;overflow:hidden}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.top h2{font-size:26px;font-weight:800}.top span{background:#FFF4D1;border:1px solid #F2C94C;padding:6px 12px;border-radius:999px;font-weight:600;font-size:13px}
+.g2{display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;margin-bottom:24px}
+label{display:block;font-weight:600;font-size:13px;margin-bottom:4px;color:#3C4756}
+.f{border:1.5px solid #C4CBD5;border-radius:6px;height:42px;padding:10px 12px;background:#fff}
+.sec{display:flex;gap:10px;align-items:center;margin:8px 0 12px}
+.sec i{font-style:normal;background:#1F2A37;color:#fff;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px}
+.sec b{font-size:18px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:1.5px solid #C4CBD5;border-radius:6px;padding:8px 14px;font-weight:600}.chip.on{background:#2F80ED;border-color:#2F80ED;color:#fff}
+.note{color:#5F6B7A;font-size:13px;margin-bottom:22px}
+.btn{position:absolute;right:56px;bottom:32px;background:#1F2A37;color:#fff;padding:13px 26px;border-radius:6px;font-weight:800}
+</style></head><body>
+<div class="tt">
+<h1>Dein Zeitplan</h1><p>So sieht das Technikteam deine Woche.</p>
+<table>
+<tr><th></th><th>Mo 14.</th><th>Di 15.</th><th>Mi 16.</th><th>Do 17.</th><th>Fr 18.</th></tr>
+<tr><td class="h">Nachm.</td><td></td><td><div class="b p">Probe 15–17</div></td><td></td><td></td><td></td></tr>
+<tr><td class="h">Nachm.</td><td></td><td></td><td><div class="b g">Generalprobe 15–18</div></td><td><div class="b a">Aufbau 12–15</div></td><td></td></tr>
+<tr><td class="h">Abend</td><td></td><td></td><td></td><td><div class="b v">Konzert 18:30</div></td><td><div class="b ab">Abbau 8–10</div></td></tr>
+</table>
+<p class="leg">Konzert braucht 4 Wochen Vorlauf. Noch 19 Tage: wir melden uns.</p>
+</div>
+<main>
+<div class="top"><h2>Veranstaltung anmelden</h2><span>Frist in 19 Tagen</span></div>
+<div class="sec"><i>1</i><b>Allgemeine Informationen</b></div>
+<div class="g2"><div style="grid-column:span 3"><label>Titel der Veranstaltung *</label><div class="f">Sommerkonzert 2027</div></div>
+<div><label>Verantwortliche Lehrkraft *</label><div class="f">Frau Hartmann</div></div><div style="grid-column:span 2"><label>E-Mail *</label><div class="f">hartmann@schule.example</div></div>
+<div><label>Datum *</label><div class="f">17.06.2027</div></div><div><label>Beginn *</label><div class="f">18:30</div></div><div><label>Ende *</label><div class="f">21:00</div></div></div>
+<div class="sec"><i>2</i><b>Art der Veranstaltung</b></div>
+<div class="chips"><span class="chip on">Konzert</span><span class="chip">Theater</span><span class="chip">Vortrag</span><span class="chip">Podiumsdiskussion</span><span class="chip">Informationsveranstaltung</span><span class="chip">Sonstiges</span></div>
+<p class="note">Theater und Konzert mindestens 4 Wochen vorher, sonst 2 Wochen.</p>
+<div class="sec"><i>3</i><b>Benötigte Technik</b></div>
+<div class="chips"><span class="chip on">Mikrofone · 6</span><span class="chip">Headsets</span><span class="chip">Musikwiedergabe</span><span class="chip on">Bühnenlicht</span></div>
+<div class="btn">Anmeldung senden</div>
+</main></body></html>

@@ -1,0 +1,32 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Register-Reiter</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600&family=Archivo:wght@500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#E9E7E2;color:#1E1E24;font:400 17px/1.5 "Source Serif 4",serif;position:relative}
+.book{position:absolute;left:80px;right:140px;top:36px;bottom:36px;background:#1C7C7D;box-shadow:0 2px 0 #0C4B4C}
+.leaf{position:absolute;left:36px;right:36px;top:30px;bottom:30px;background:rgba(255,255,255,.92);padding:40px 56px;overflow:hidden}
+.leaf:before,.leaf:after{content:"";position:absolute;left:-18px;width:14px;height:14px;border-radius:50%;background:#E9E7E2}.leaf:before{top:120px}.leaf:after{bottom:120px}
+.tabs{position:absolute;right:80px;top:60px;width:60px;display:flex;flex-direction:column;gap:3px}
+.tabs i{display:block;border-radius:0 8px 8px 0;font:700 13px/1 Archivo,sans-serif;color:#fff;padding:12px 0 0 12px}
+.tabs i.on{width:60px;margin-left:0}.tabs i:not(.on){width:46px}
+h1{font:700 30px/1.1 Archivo,sans-serif;margin-bottom:6px}.k{font:500 13px Archivo,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#1C7C7D}
+.g{display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px 24px;margin:22px 0}
+label{display:block;font:500 12px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:3px}
+.f{border:1.5px solid #1E1E24;background:#fff;height:44px;padding:9px 12px;font-size:16px}
+.t{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.c{border:1.5px solid #1E1E24;padding:7px 14px;font:500 15px Archivo,sans-serif;background:#fff}.c.on{background:#1C7C7D;color:#fff;border-color:#1C7C7D}
+.warn{border-left:6px solid #F2B705;background:#FFF8DC;padding:10px 14px;font:500 14px Archivo,sans-serif;margin:8px 0 18px}
+.btn{position:absolute;right:56px;bottom:40px;background:#1E1E24;color:#fff;padding:12px 26px;font:700 15px Archivo,sans-serif}
+</style></head><body>
+<div class="tabs"><i class="on" style="background:#1C7C7D">1</i><i style="background:#F2B705;color:#1E1E24">2</i><i style="background:#4A4E9E">3</i><i style="background:#C2512F">4</i><i style="background:#3E8E41">5</i><i style="background:#8A3FA0">6</i><i style="background:#6B4B3A">7</i></div>
+<div class="book"><div class="leaf">
+<div class="k">Abschnitt 1 von 7</div><h1>Allgemeine Informationen</h1>
+<div class="g"><div style="grid-column:span 3"><label>Titel der Veranstaltung *</label><div class="f">Sommerkonzert 2027</div></div>
+<div><label>Verantwortliche Lehrkraft *</label><div class="f">Frau Hartmann</div></div><div style="grid-column:span 2"><label>E-Mail *</label><div class="f">hartmann@schule.example</div></div>
+<div><label>Datum *</label><div class="f">17.06.2027</div></div><div><label>Beginn *</label><div class="f">18:30</div></div><div><label>Ende *</label><div class="f">21:00</div></div>
+<div style="grid-column:span 3"><label>Veranstaltungsort *</label><div class="f">Aula</div></div></div>
+<div class="k">Abschnitt 2</div><h1 style="font-size:22px">Art der Veranstaltung</h1>
+<div class="t" style="margin-top:12px"><span class="c on">Konzert</span><span class="c">Theater</span><span class="c">Vortrag</span><span class="c">Podiumsdiskussion</span><span class="c">Informationsveranstaltung</span><span class="c">Sonstiges</span></div>
+<div class="warn">Konzerte brauchen 4 Wochen Vorlauf. Es sind noch 19 Tage. Senden geht trotzdem.</div>
+<div class="btn">Weiter zu 3 Technik</div>
+</div></div></body></html>
