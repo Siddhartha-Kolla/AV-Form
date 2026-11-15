@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     "Anmeldung von Veranstaltungen beim Technikteam der Schule: benötigte Technik, Termine und Unterlagen.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>

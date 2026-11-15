@@ -108,6 +108,38 @@ export function TextArea({
   );
 }
 
+export function SelectField({
+  id,
+  label,
+  children,
+  defaultValue,
+  disabled,
+  className,
+  hint,
+  name,
+}: Common & { children: ReactNode; defaultValue?: string; disabled?: boolean; name?: string }) {
+  return (
+    <div className={className}>
+      <Label id={id} label={label} />
+      <select
+        id={id}
+        name={name ?? id}
+        defaultValue={defaultValue}
+        disabled={disabled}
+        aria-describedby={hint ? `${id}-hint` : undefined}
+        className={cn(control, "select h-11")}
+      >
+        {children}
+      </select>
+      {hint && (
+        <p id={`${id}-hint`} className="mt-1.5 text-sm text-muted-foreground">
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Auswahlzeile: die ganze Zeile ist klickbar und hat eine feste Höhe.
  * Rechts kann ein Zusatzfeld sitzen (Anzahl), ohne dass die Zeile springt.

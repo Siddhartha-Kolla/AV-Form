@@ -8,9 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "keygen": "node scripts/keygen.mjs",
-    "test:server": "node --conditions react-server --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/server.test.ts",
+    "test:server": "node --conditions react-server --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.ts",
     "db:seed": "node --conditions react-server --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local scripts/seed.ts",
-    "db:cleanup": "node --conditions react-server --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local scripts/cleanup.ts"
+    "db:cleanup": "node --conditions react-server --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local scripts/cleanup.ts",
+    "team": "node --conditions react-server --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local scripts/team.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

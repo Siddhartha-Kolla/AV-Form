@@ -41,6 +41,65 @@ const MIGRATIONEN: string[] = [
   ) STRICT;
   CREATE INDEX aenderungen_anmeldung ON aenderungen (anmeldung_id);
   `,
+  // Version 2: Konten, Anmeldeanbieter, Sitzungen, Drosselung, Protokoll
+  `
+  CREATE TABLE konten (
+    id                    TEXT PRIMARY KEY,
+    benutzername_hash     TEXT NOT NULL UNIQUE,
+    daten                 BLOB NOT NULL,
+    rolle                 TEXT NOT NULL,
+    status                TEXT NOT NULL DEFAULT 'aktiv' CHECK (status IN ('aktiv', 'gesperrt')),
+    muss_passwort_aendern INTEGER NOT NULL DEFAULT 0,
+    erstellt_am           TEXT NOT NULL,
+    geaendert_am          TEXT NOT NULL,
+    letzter_login         TEXT
+  ) STRICT;
+  CREATE UNIQUE INDEX nur_ein_superuser ON konten (rolle) WHERE rolle = 'superuser';
+
+  CREATE TABLE identitaeten (
+    id           TEXT PRIMARY KEY,
+    konto_id     TEXT NOT NULL REFERENCES konten (id) ON DELETE CASCADE,
+    anbieter     TEXT NOT NULL,
+    subjekt_hash TEXT NOT NULL,
+    geheimnis    BLOB,
+    erstellt_am  TEXT NOT NULL,
+    UNIQUE (anbieter, subjekt_hash)
+  ) STRICT;
+  CREATE INDEX identitaeten_konto ON identitaeten (konto_id);
+
+  CREATE TABLE sitzungen (
+    id            TEXT PRIMARY KEY,
+    token_hash    TEXT NOT NULL UNIQUE,
+    konto_id      TEXT NOT NULL REFERENCES konten (id) ON DELETE CASCADE,
+    anbieter      TEXT NOT NULL,
+    erstellt_am   TEXT NOT NULL,
+    zuletzt_aktiv TEXT NOT NULL,
+    laeuft_ab_am  TEXT NOT NULL,
+    geraet        BLOB
+  ) STRICT;
+  CREATE INDEX sitzungen_konto ON sitzungen (konto_id);
+
+  CREATE TABLE login_versuche (
+    id         INTEGER PRIMARY KEY,
+    zeit       TEXT NOT NULL,
+    schluessel TEXT NOT NULL
+  ) STRICT;
+  CREATE INDEX login_versuche_schluessel ON login_versuche (schluessel, zeit);
+
+  CREATE TABLE protokoll (
+    id        INTEGER PRIMARY KEY,
+    zeit      TEXT NOT NULL,
+    ereignis  TEXT NOT NULL,
+    ergebnis  TEXT NOT NULL CHECK (ergebnis IN ('ok', 'fehler')),
+    akteur_id TEXT,
+    ziel_typ  TEXT,
+    ziel_id   TEXT,
+    daten     BLOB NOT NULL
+  ) STRICT;
+  CREATE INDEX protokoll_zeit ON protokoll (zeit);
+  CREATE INDEX protokoll_ereignis ON protokoll (ereignis, zeit);
+  CREATE INDEX protokoll_akteur ON protokoll (akteur_id, zeit);
+  `,
 ];
 
 const global = globalThis as unknown as { __technikDb?: Database.Database };
