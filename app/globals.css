@@ -181,7 +181,35 @@
   }
 }
 
+/*
+  Angedockt: Auf breiten Bildschirmen überdeckt die Vorschau die Seite nicht, sondern steht daneben.
+  Die Seite bekommt rechts einen Rand in Breite des Fensters und rückt zusammen.
+*/
+@media (min-width: 1280px) {
+  :root {
+    --vorschau-breite: clamp(30rem, 38vw, 42rem);
+  }
+  body {
+    transition: padding-right 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  html[data-vorschau-offen] body {
+    padding-right: var(--vorschau-breite);
+  }
+  .drawer[data-angedockt] {
+    position: fixed;
+    inset: 0 0 0 auto;
+    margin: 0;
+    width: var(--vorschau-breite);
+    box-shadow: none;
+  }
+}
+
 /* Word-Vorschau: die Bibliothek fügt ihre Stile ohne Layer ein, deshalb stehen diese Regeln auch ohne Layer. */
+.docx-vorschau {
+  /* So breit wie die Seite, nicht so breit wie das Fenster. Ist das Fenster schmaler, lässt sich seitlich scrollen. */
+  width: max-content;
+  margin-inline: auto;
+}
 .docx-vorschau .docx-wrapper {
   background: transparent;
   padding: 1rem;

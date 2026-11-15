@@ -9,6 +9,9 @@ import { PdfAnsicht } from "./pdf-ansicht";
 import { AudioAnsicht, DocxAnsicht, TextAnsicht } from "./weitere-ansichten";
 import { artText, dateiArt, dateiUrl, hatVorschau, type DateiArt } from "./datei";
 
+/** Ab dieser Breite ist neben der Seite Platz für die Vorschau. */
+const BREIT = "(min-width: 1280px)";
+
 export type UnterlagenDatei = { id: string; name: string; groesse: number; erstelltAm: string };
 
 function Symbol({ art, className }: { art: DateiArt; className?: string }) {
@@ -26,25 +29,51 @@ function Symbol({ art, className }: { art: DateiArt; className?: string }) {
  */
 export function Unterlagen({ anmeldungId, dateien }: { anmeldungId: string; dateien: UnterlagenDatei[] }) {
   const [offen, setOffen] = useState<number | null>(null);
+  // Auf breiten Bildschirmen steht die Vorschau neben der Seite und schiebt sie zur Seite, auf schmalen liegt sie darüber.
+  const [angedockt, setAngedockt] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const zurueck = useRef<HTMLElement | null>(null);
+  const istOffen = offen !== null;
 
   const oeffnen = useCallback((index: number) => {
-    zurueck.current = document.activeElement as HTMLElement | null;
+    if (!dialog.current?.open) {
+      zurueck.current = document.activeElement as HTMLElement | null;
+      setAngedockt(window.matchMedia(BREIT).matches);
+    }
     setOffen(index);
   }, []);
 
   useEffect(() => {
     const d = dialog.current;
     if (!d) return;
-    if (offen !== null && !d.open) d.showModal();
+    if (offen !== null && !d.open) {
+      if (angedockt) d.show();
+      else d.showModal();
+    }
     if (offen === null && d.open) d.close();
-  }, [offen]);
+  }, [offen, angedockt]);
+
+  // Angedockt braucht die Seite Platz: ein Attribut am Wurzelelement lässt das CSS den rechten Rand freihalten.
+  useEffect(() => {
+    if (!istOffen || !angedockt) return;
+    document.documentElement.setAttribute("data-vorschau-offen", "");
+    return () => document.documentElement.removeAttribute("data-vorschau-offen");
+  }, [istOffen, angedockt]);
 
   const schliessen = useCallback(() => {
     setOffen(null);
     zurueck.current?.focus();
   }, []);
+
+  // Ein nicht-modaler Dialog schließt nicht von selbst mit Escape.
+  useEffect(() => {
+    if (!istOffen || !angedockt) return;
+    const taste = (e: KeyboardEvent) => {
+      if (e.key === "Escape") schliessen();
+    };
+    document.addEventListener("keydown", taste);
+    return () => document.removeEventListener("keydown", taste);
+  }, [istOffen, angedockt, schliessen]);
 
   const weiter = useCallback(
     (schritt: number) => setOffen((i) => (i === null ? i : (i + schritt + dateien.length) % dateien.length)),
@@ -65,7 +94,11 @@ export function Unterlagen({ anmeldungId, dateien }: { anmeldungId: string; date
                 type="button"
                 onClick={() => oeffnen(i)}
                 aria-label={`Vorschau öffnen: ${d.name}`}
-                className="group -ml-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-muted"
+                aria-current={offen === i ? "true" : undefined}
+                className={cn(
+                  "group -ml-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-muted",
+                  offen === i && "bg-muted",
+                )}
               >
                 <Symbol art={a} className="text-muted-foreground group-hover:text-foreground" />
                 <span className="min-w-0">
@@ -91,10 +124,11 @@ export function Unterlagen({ anmeldungId, dateien }: { anmeldungId: string; date
       <dialog
         ref={dialog}
         className="drawer"
+        data-angedockt={angedockt ? "" : undefined}
         aria-label={datei ? `Vorschau: ${datei.name}` : "Vorschau"}
         onClose={() => setOffen(null)}
         onClick={(e) => {
-          if (e.target === dialog.current) schliessen();
+          if (!angedockt && e.target === dialog.current) schliessen();
         }}
         onKeyDown={(e) => {
           const ziel = e.target as HTMLElement;

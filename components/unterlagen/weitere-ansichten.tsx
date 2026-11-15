@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { holeDatei } from "./datei";
+import { useZoom, ZoomFuss } from "./zoom";
 
 function Hinweis({ text, fehler = false }: { text: string; fehler?: boolean }) {
   return (
@@ -31,10 +32,19 @@ function useBlob(url: string): Laden<Blob> {
 
 /* Word ------------------------------------------------------------------- */
 
+/**
+ * Word-Seiten haben eine feste Breite (A4 sind rund 800 Pixel). Auf schmalen Bildschirmen wird die Seite
+ * deshalb zuerst auf die Breite des Fensters verkleinert ("passt") und lässt sich von dort heran- und
+ * herauszoomen. Auf breiten Bildschirmen bleibt sie in Originalgröße.
+ */
 export function DocxAnsicht({ url }: { url: string }) {
   const blob = useBlob(url);
   const ziel = useRef<HTMLDivElement>(null);
+  const [scroll, setScroll] = useState<HTMLDivElement | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [natuerlich, setNatuerlich] = useState(0); // Breite der Seite samt Rand in Pixeln, bei Zoom 1
+  const [breite, setBreite] = useState(0);
+  const { zoom, groesser, kleiner, zurueck } = useZoom(scroll);
 
   useEffect(() => {
     if (blob.status !== "fertig" || !ziel.current) return;
@@ -59,6 +69,7 @@ export function DocxAnsicht({ url }: { url: string }) {
           a.setAttribute("target", "_blank");
           a.setAttribute("rel", "noopener noreferrer");
         }
+        setNatuerlich(container.getBoundingClientRect().width);
       } catch {
         if (!abgebrochen) setFehler("Dieses Word-Dokument lässt sich hier nicht anzeigen. Du kannst es herunterladen.");
       }
@@ -68,12 +79,32 @@ export function DocxAnsicht({ url }: { url: string }) {
     };
   }, [blob]);
 
+  useEffect(() => {
+    if (!scroll) return;
+    const messen = () => setBreite(scroll.clientWidth);
+    messen();
+    const beobachter = new ResizeObserver(messen);
+    beobachter.observe(scroll);
+    return () => beobachter.disconnect();
+  }, [scroll]);
+
   if (blob.status === "laedt") return <Hinweis text="Wird geladen" />;
   if (blob.status === "fehler") return <Hinweis text={blob.text} fehler />;
   if (fehler) return <Hinweis text={fehler} fehler />;
+
+  const passt = natuerlich > 0 && breite > 0 ? Math.min(1, breite / natuerlich) : 1;
   return (
-    <div className="h-full overflow-auto bg-muted">
-      <div ref={ziel} className="docx-vorschau" />
+    <div className="flex h-full min-h-0 flex-col">
+      <div
+        ref={setScroll}
+        tabIndex={0}
+        aria-label="Word-Dokument. Mit Pinch, Strg plus Mausrad oder den Tasten Plus und Minus zoomen."
+        className="touch-pan-x touch-pan-y min-h-0 flex-1 overflow-auto bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
+      >
+        {/* CSS-zoom ändert die Größe im Layout, deshalb wächst der Bildlaufbereich mit */}
+        <div ref={ziel} className="docx-vorschau" style={{ zoom: passt * zoom, visibility: natuerlich ? "visible" : "hidden" }} />
+      </div>
+      <ZoomFuss links={passt < 1 && Math.abs(zoom - 1) < 0.01 ? "An die Breite angepasst" : undefined} zoom={zoom} groesser={groesser} kleiner={kleiner} zurueck={zurueck} />
     </div>
   );
 }

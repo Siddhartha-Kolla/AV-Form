@@ -71,7 +71,8 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
   const bevorstehend = v.datum >= heute;
 
   return (
-    <div>
+    // @container: Die Spalten richten sich nach dem Platz, der der Seite bleibt, auch wenn rechts die Vorschau steht.
+    <div className="@container">
       <Link
         href="/team"
         className="-ml-1 mb-6 inline-flex items-center gap-1 rounded-md py-1 pr-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -110,7 +111,7 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
         )}
       </header>
 
-      <dl className="mt-8 grid gap-x-8 gap-y-5 border-y border-border py-5 sm:grid-cols-3">
+      <dl className="mt-8 grid gap-x-8 gap-y-5 border-y border-border py-5 @xl:grid-cols-3">
         <Fakt name="Lehrkraft">
           {v.lehrkraft}
           <a href={`mailto:${v.email}`} className="mt-0.5 block text-sm font-normal text-muted-foreground underline underline-offset-4 hover:text-foreground">
@@ -130,13 +131,13 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
         </Fakt>
       </dl>
 
-      <div className="mt-12 grid gap-x-14 gap-y-14 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="space-y-14">
+      <div className="mt-12 grid gap-x-14 gap-y-14 @2xl:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="@container space-y-14">
           <Abschnitt titel="Technik">
             {gruppen.length === 0 ? (
               <p className="text-[15px] text-muted-foreground">Keine Technik angegeben.</p>
             ) : (
-              <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
+              <div className="grid gap-x-10 gap-y-6 @lg:grid-cols-2">
                 {gruppen.map((g) => (
                   <div key={g.gruppe}>
                     <h3 className="mb-1.5 text-sm font-medium text-muted-foreground">{g.gruppe}</h3>

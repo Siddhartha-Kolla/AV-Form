@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { holeDatei } from "./datei";
+import { useZoom, ZoomFuss } from "./zoom";
 
 type Zustand =
   | { status: "laedt" }
@@ -19,6 +20,7 @@ export function PdfAnsicht({ url }: { url: string }) {
   const [aktuell, setAktuell] = useState(1);
   const [breite, setBreite] = useState(0);
   const [scroll, setScroll] = useState<HTMLDivElement | null>(null);
+  const { zoom, groesser, kleiner, zurueck } = useZoom(scroll);
 
   useEffect(() => {
     const abbruch = new AbortController();
@@ -66,17 +68,68 @@ export function PdfAnsicht({ url }: { url: string }) {
   if (zustand.status === "fehler") return <Hinweis text={zustand.text} fehler />;
 
   const seitenBreite = Math.max(0, Math.min(breite - 32, 820));
+  const breiteMitZoom = Math.round(seitenBreite * zoom);
+  return (
+    <PdfInhalt
+      zustand={zustand}
+      aktuell={aktuell}
+      setAktuell={setAktuell}
+      setScroll={setScroll}
+      scroll={scroll}
+      breiteMitZoom={breiteMitZoom}
+      zoom={zoom}
+      groesser={groesser}
+      kleiner={kleiner}
+      zurueck={zurueck}
+    />
+  );
+}
+
+function PdfInhalt({
+  zustand,
+  aktuell,
+  setAktuell,
+  setScroll,
+  scroll,
+  breiteMitZoom,
+  zoom,
+  groesser,
+  kleiner,
+  zurueck,
+}: {
+  zustand: Extract<Zustand, { status: "fertig" }>;
+  aktuell: number;
+  setAktuell: (n: number) => void;
+  setScroll: (el: HTMLDivElement | null) => void;
+  scroll: HTMLDivElement | null;
+  breiteMitZoom: number;
+  zoom: number;
+  groesser: () => void;
+  kleiner: () => void;
+  zurueck: () => void;
+}) {
+  // Beim Zoomen ändert sich die Breite der Seiten sofort (die Bilder werden gestreckt). Scharf neu gezeichnet
+  // wird erst, wenn der Zoom zur Ruhe kommt, und nur in Zehnerschritten.
+  const gerundet = Math.round((breiteMitZoom / Math.max(zoom, 0.01)) * (Math.round(zoom * 10) / 10));
+  const zeichenBreite = useDeferredValue(gerundet);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div ref={setScroll} className="min-h-0 flex-1 overflow-auto bg-muted px-4 py-4">
-        <div className="mx-auto flex flex-col gap-4" style={{ width: seitenBreite || undefined }}>
-          {seitenBreite > 0 &&
+      <div
+        ref={setScroll}
+        tabIndex={0}
+        aria-label="PDF-Seiten. Mit Pinch, Strg plus Mausrad oder den Tasten Plus und Minus zoomen."
+        className="touch-pan-x touch-pan-y min-h-0 flex-1 overflow-auto bg-muted px-4 py-4 outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
+      >
+        <div className="mx-auto flex flex-col gap-4" style={{ width: breiteMitZoom || undefined }}>
+          {breiteMitZoom > 0 &&
             Array.from({ length: zustand.seiten }, (_, i) => (
               <Seite
-                key={`${i}-${Math.round(seitenBreite / 40)}`}
+                key={i}
                 pdf={zustand.pdf}
                 nummer={i + 1}
-                breite={seitenBreite}
+                breite={breiteMitZoom}
+                zeichenBreite={zeichenBreite}
                 verhaeltnis={zustand.verhaeltnis}
                 root={scroll}
                 onSichtbar={setAktuell}
@@ -84,12 +137,13 @@ export function PdfAnsicht({ url }: { url: string }) {
             ))}
         </div>
       </div>
-      <div className="flex items-center justify-between border-t border-border bg-surface px-5 py-2.5 text-sm text-muted-foreground" aria-live="polite">
-        <span>
-          Seite {aktuell} von {zustand.seiten}
-        </span>
-        <span className="hidden sm:inline">Zum Blättern scrollen</span>
-      </div>
+      <ZoomFuss
+        links={`Seite ${aktuell} von ${zustand.seiten}`}
+        zoom={zoom}
+        groesser={groesser}
+        kleiner={kleiner}
+        zurueck={zurueck}
+      />
     </div>
   );
 }
@@ -98,6 +152,7 @@ function Seite({
   pdf,
   nummer,
   breite,
+  zeichenBreite,
   verhaeltnis,
   root,
   onSichtbar,
@@ -105,6 +160,8 @@ function Seite({
   pdf: PDFDocumentProxy;
   nummer: number;
   breite: number;
+  /** Breite, in der die Seite gerade scharf gezeichnet wird. Sie hinkt beim Zoomen kurz hinterher. */
+  zeichenBreite: number;
   verhaeltnis: number;
   root: HTMLDivElement | null;
   onSichtbar: (nummer: number) => void;
@@ -112,7 +169,6 @@ function Seite({
   const rahmen = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [sichtbar, setSichtbar] = useState(nummer <= 2);
-  const gezeichnet = useRef(false);
 
   useEffect(() => {
     const el = rahmen.current;
@@ -134,15 +190,16 @@ function Seite({
   }, [root, nummer, onSichtbar]);
 
   useEffect(() => {
-    if (!sichtbar || gezeichnet.current || !canvas.current) return;
+    if (!sichtbar || !canvas.current || zeichenBreite <= 0) return;
     let aufgabe: { cancel: () => void; promise: Promise<unknown> } | null = null;
     let abgebrochen = false;
     (async () => {
       const seite = await pdf.getPage(nummer);
       if (abgebrochen || !canvas.current) return;
       const basis = seite.getViewport({ scale: 1 });
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const ansicht = seite.getViewport({ scale: (breite / basis.width) * dpr });
+      // Höchstens 3200 Pixel breit, sonst wird die Zeichenfläche beim starken Zoomen zu groß für den Speicher.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2, 3200 / zeichenBreite);
+      const ansicht = seite.getViewport({ scale: (zeichenBreite / basis.width) * dpr });
       const c = canvas.current;
       c.width = Math.floor(ansicht.width);
       c.height = Math.floor(ansicht.height);
@@ -151,7 +208,6 @@ function Seite({
       aufgabe = seite.render({ canvasContext: kontext, viewport: ansicht });
       try {
         await aufgabe.promise;
-        gezeichnet.current = true;
       } catch {
         // Beim Schließen oder Neuzeichnen abgebrochen.
       }
@@ -160,7 +216,7 @@ function Seite({
       abgebrochen = true;
       aufgabe?.cancel();
     };
-  }, [sichtbar, pdf, nummer, breite]);
+  }, [sichtbar, pdf, nummer, zeichenBreite]);
 
   return (
     <div
