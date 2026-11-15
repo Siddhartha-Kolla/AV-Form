@@ -41,11 +41,14 @@ export function FormularAbschnitte({
   f,
   fehler,
   fristHinweis,
+  belegung,
 }: {
   f: Formular;
   fehler: (key: string) => string | undefined;
   /** Hinweis zur Anmeldefrist unter der Art. Das Team braucht ihn nicht. */
   fristHinweis?: ReactNode;
+  /** Hinweis zur Belegung des Teams unter den Zeitfeldern. Nur für Lehrkräfte. */
+  belegung?: ReactNode;
 }) {
   const { values, set, toggleArt, toggleTech, setTermin } = f;
   return (
@@ -113,6 +116,7 @@ export function FormularAbschnitte({
           onChange={(e) => set("ende", e.target.value)}
           error={fehler("ende")}
         />
+        {belegung && <div className="col-span-2 space-y-2 md:col-span-6">{belegung}</div>}
         <TextField
           id="ort"
           label="Veranstaltungsort"

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/fields";
 import { FormularAbschnitte, useFormular } from "@/components/formular-abschnitte";
 import { FileDrop } from "@/components/file-drop";
+import { BelegungsEinklapper, BelegungsHinweis, BelegungsPanel, useBelegung } from "@/components/belegung";
 import { datumLang, sendeAnmeldung } from "@/lib/submit";
 import { ARTEN, VORSCHLAEGE, emptyValues, parseDatum, fristPruefen, validate } from "@/lib/registration";
 
@@ -30,6 +31,7 @@ export function RegistrationForm() {
   // Leer beim Prerender, danach das heutige Datum des Browsers.
   const heuteIso = useSyncExternalStore(keinAbo, heuteAlsIso, () => "");
   const heute = useMemo(() => (heuteIso ? parseDatum(heuteIso) : null), [heuteIso]);
+  const { liste, fehlgeschlagen } = useBelegung();
 
   const alle = useMemo(() => validate(values, heute), [values, heute]);
   const fehler = (key: string) => (submitted || touched[key] ? alle[key] : undefined);
@@ -70,6 +72,7 @@ export function RegistrationForm() {
 
   if (status === "sent") {
     return (
+      <Rahmen>
       <div ref={done} tabIndex={-1} className="outline-none">
         <h1 className="text-3xl font-semibold tracking-tight text-balance">Die Anmeldung ist eingegangen</h1>
         <p className="mt-4 max-w-[65ch] leading-relaxed">
@@ -84,13 +87,38 @@ export function RegistrationForm() {
           Weitere Veranstaltung anmelden
         </Button>
       </div>
+      </Rahmen>
     );
   }
 
   const sending = status === "sending";
   const errorList = sichtbareFehler.length > 0 && submitted;
 
+  // Die Belegung braucht das heutige Datum des Browsers und gibt es deshalb erst nach dem Laden.
+  const panel = {
+    heute: heuteIso,
+    datum: values.datum,
+    liste,
+    fehlgeschlagen,
+    onWaehle: (tag: string) => formular.set("datum", tag),
+  };
+
   return (
+    <Rahmen
+      seite={
+        heuteIso && (
+          <section aria-labelledby="belegung-titel" className="rounded-lg border border-border bg-surface p-5">
+            <h2 id="belegung-titel" className="text-lg font-semibold tracking-tight">
+              Belegung des Teams
+            </h2>
+            <p className="mb-4 mt-1 text-sm leading-relaxed text-muted-foreground">
+              Überschneidungen sind kein Problem, wir melden uns bei Ihnen.
+            </p>
+            <BelegungsPanel {...panel} kartenHoehe="max-h-[calc(100dvh-32rem)] min-h-40" />
+          </section>
+        )
+      }
+    >
     <form
       noValidate
       onSubmit={onSubmit}
@@ -142,7 +170,16 @@ export function RegistrationForm() {
       <fieldset disabled={sending} className="min-w-0">
         <legend className="sr-only">Veranstaltungsanmeldung</legend>
 
-        <FormularAbschnitte f={formular} fehler={fehler} fristHinweis={<FristHinweis frist={frist} />} />
+        <FormularAbschnitte f={formular} fehler={fehler} fristHinweis={<FristHinweis frist={frist} />}
+          belegung={
+            heuteIso ? (
+              <>
+                <BelegungsHinweis heute={heuteIso} datum={values.datum} beginn={values.beginn} ende={values.ende} liste={liste} />
+                <BelegungsEinklapper {...panel} />
+              </>
+            ) : null
+          }
+        />
 
         <Section id="unterlagen" nr="8" title="Unterlagen">
           <div className="mb-4 max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
@@ -187,6 +224,22 @@ export function RegistrationForm() {
         </div>
       </fieldset>
     </form>
+    </Rahmen>
+  );
+}
+
+/**
+ * Das Formular steht in einer Karte. Ab 1280 Pixel Breite sitzt rechts daneben die Belegung des Teams
+ * und bleibt beim Scrollen im Bild, so dass beim Ausfüllen immer sichtbar ist, was schon vergeben ist.
+ */
+function Rahmen({ children, seite }: { children: React.ReactNode; seite?: React.ReactNode }) {
+  return (
+    <div className="xl:grid xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
+      <main className="rounded-lg border border-border bg-surface px-5 py-9 shadow-[0_1px_2px_rgb(0_0_0/0.04)] sm:px-12 sm:py-14">
+        {children}
+      </main>
+      {seite && <aside className="sticky top-6 hidden xl:block">{seite}</aside>}
+    </div>
   );
 }
 

@@ -306,6 +306,28 @@ export function listeAnmeldungen(): { anmeldungen: AnmeldungMitZusatz[]; unlesba
   return { anmeldungen, unlesbar };
 }
 
+/**
+ * Die belegten Termine für die öffentliche Belegungsanzeige: nur Datum und Uhrzeit, nichts sonst.
+ * Abgelehntes steht nicht im Zeitplan und zählt nicht.
+ */
+export function listeBelegung(vonIso: string, bisIso: string): { datum: string; beginn: string; ende: string }[] {
+  const zeilen = db()
+    .prepare(
+      `SELECT ${SPALTEN} FROM anmeldungen WHERE datum >= ? AND datum <= ? AND status != 'abgelehnt' ORDER BY datum`,
+    )
+    .all(vonIso, bisIso) as Zeile[];
+  const ergebnis: { datum: string; beginn: string; ende: string }[] = [];
+  for (const z of zeilen) {
+    try {
+      const { datum, beginn, ende } = zuAnmeldung(z).values;
+      ergebnis.push({ datum, beginn, ende });
+    } catch {
+      // Eine unlesbare Zeile soll die Anzeige für alle anderen nicht verhindern.
+    }
+  }
+  return ergebnis;
+}
+
 export function loescheAnmeldung(id: string): boolean {
   entferneDateienVonDisk(id);
   return db().prepare("DELETE FROM anmeldungen WHERE id = ?").run(id).changes > 0;

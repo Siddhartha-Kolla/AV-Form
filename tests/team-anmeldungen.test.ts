@@ -325,3 +325,18 @@ describe("Entscheidung des Teams", () => {
     assert.equal(anm.listeEntscheidungen(id).length, 0);
   });
 });
+
+describe("Öffentliche Belegung", () => {
+  it("liefert nur Datum und Uhrzeit, ohne Abgelehntes und nur im Zeitraum", () => {
+    const werte = { ...emptyValues(), titel: "Geheimer Titel", lehrkraft: "Frau Geheim", email: "g@schule.example", beginn: "18:00", ende: "20:00", ort: "Aula", arten: ["konzert" as const] };
+    const gut = anm.erstelleAnmeldung({ ...werte, datum: "2098-03-10" });
+    const abgelehnt = anm.erstelleAnmeldung({ ...werte, datum: "2098-03-11" });
+    anm.erstelleAnmeldung({ ...werte, datum: "2098-09-01" }); // außerhalb des Zeitraums
+    anm.entscheideAnmeldung(abgelehnt.id, { status: "abgelehnt", nachricht: "", erwarteterStatus: "neu", akteur: { id: "x", name: "X" } });
+    void gut;
+
+    const liste = anm.listeBelegung("2098-03-01", "2098-03-31");
+    assert.deepEqual(liste, [{ datum: "2098-03-10", beginn: "18:00", ende: "20:00" }]);
+    assert.ok(!JSON.stringify(liste).includes("Geheim"));
+  });
+});
