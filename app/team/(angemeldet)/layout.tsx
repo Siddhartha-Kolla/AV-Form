@@ -7,10 +7,12 @@ import { TeamShell } from "./team-shell";
  */
 function Rahmen() {
   return (
-    <div className="mx-auto w-full max-w-[64rem] px-3 pb-20 sm:px-6">
-      <div className="h-[4.5rem] sm:h-[5rem]" />
-      <div className="min-h-72 rounded-lg border border-border bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04)]" />
-    </div>
+    <>
+      <div className="h-14 border-b border-border bg-surface" />
+      <div className="mx-auto w-full max-w-[64rem] px-3 pb-20 pt-5 sm:px-6 sm:pt-8">
+        <div className="min-h-72 rounded-lg border border-border bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04)]" />
+      </div>
+    </>
   );
 }
 
