@@ -6,7 +6,7 @@ import {
   type ArtId,
   type FormValues,
 } from "./registration.ts";
-import { tageZwischen } from "./format.ts";
+import { monatTitel, tageZwischen } from "./format.ts";
 
 /*
   Reine Hilfsfunktionen für die Übersicht und die Detailseite des Teams.
@@ -15,14 +15,61 @@ import { tageZwischen } from "./format.ts";
 
 export type ZeitAuswahl = "anstehend" | "vergangen" | "alle";
 
+/** Nur die Felder, die die Übersicht braucht. Mehr verlässt den Server nicht, wenn die Liste im Browser gefiltert wird. */
+export type ListenWerte = Pick<
+  FormValues,
+  | "titel"
+  | "lehrkraft"
+  | "ort"
+  | "datum"
+  | "beginn"
+  | "ende"
+  | "arten"
+  | "art_sonstiges"
+  | "tech"
+  | "mikrofone_anzahl"
+  | "betreuung_ton"
+  | "betreuung_licht"
+>;
+
 export type Listeneintrag = {
+  id: string;
+  values: ListenWerte;
+  erstelltAm: string;
+  dateienAnzahl: number;
+  aenderungen: { zeit: string; felder: string[] }[];
+};
+
+/** Verkleinert eine vollständige Anmeldung auf das, was die Liste zeigt. */
+export function alsListeneintrag(a: {
   id: string;
   values: FormValues;
   erstelltAm: string;
-  geaendertAm: string;
-  dateien: { id: string; name: string; groesse: number; erstelltAm: string }[];
+  dateien: unknown[];
   aenderungen: { zeit: string; felder: string[] }[];
-};
+}): Listeneintrag {
+  const v = a.values;
+  return {
+    id: a.id,
+    values: {
+      titel: v.titel,
+      lehrkraft: v.lehrkraft,
+      ort: v.ort,
+      datum: v.datum,
+      beginn: v.beginn,
+      ende: v.ende,
+      arten: v.arten,
+      art_sonstiges: v.art_sonstiges,
+      tech: v.tech,
+      mikrofone_anzahl: v.mikrofone_anzahl,
+      betreuung_ton: v.betreuung_ton,
+      betreuung_licht: v.betreuung_licht,
+    },
+    erstelltAm: a.erstelltAm,
+    dateienAnzahl: a.dateien.length,
+    aenderungen: a.aenderungen,
+  };
+}
 
 /* Beschriftungen ----------------------------------------------------------- */
 
@@ -78,7 +125,7 @@ export function technikGruppen(v: FormValues): { gruppe: string; punkte: string[
 }
 
 /** Eine Zeile für die Liste, zum Beispiel "Ton (6 Mikrofone), Licht, Bühne". */
-export function technikKurz(v: FormValues): string {
+export function technikKurz(v: ListenWerte): string {
   const teile: string[] = [];
   for (const g of TECH_GROUPS) {
     const gewaehlt = g.items.filter((item) => v.tech[item.id] && !KEINE_TECHNIK.has(item.id));
@@ -91,7 +138,13 @@ export function technikKurz(v: FormValues): string {
   return nurRaumlicht ? "Keine zusätzliche Technik" : "Keine Technik angegeben";
 }
 
-export function betreuungKurz(v: FormValues): string {
+/** "Ton und Licht", wenn Techniker gebraucht werden, sonst null. */
+export function betreuungNoetig(v: ListenWerte): string | null {
+  const wer = [v.betreuung_ton && "Ton", v.betreuung_licht && "Licht"].filter(Boolean);
+  return wer.length > 0 ? wer.join(" und ") : null;
+}
+
+export function betreuungKurz(v: ListenWerte): string {
   const wer = [v.betreuung_ton && "Ton", v.betreuung_licht && "Licht"].filter(Boolean);
   return wer.length > 0 ? `Techniker nötig: ${wer.join(" und ")}` : "Ohne Techniker";
 }
@@ -99,13 +152,24 @@ export function betreuungKurz(v: FormValues): string {
 /* Status ------------------------------------------------------------------- */
 
 /** Wurde mit genügend Vorlauf angemeldet? Verglichen wird mit dem Tag der Anmeldung, nicht mit heute. */
-export function fristBeiAnmeldung(v: FormValues, erstelltAm: string) {
+export function fristBeiAnmeldung(v: Pick<FormValues, "datum" | "arten">, erstelltAm: string) {
   return fristPruefen(v.datum, v.arten, new Date(erstelltAm));
 }
 
 export function knappAngemeldet(e: Listeneintrag): { vorhanden: number; noetig: number; art: string } | null {
   const f = fristBeiAnmeldung(e.values, e.erstelltAm);
   return f && f.status === "knapp" ? { vorhanden: f.vorhanden, noetig: f.noetig, art: f.art } : null;
+}
+
+/**
+ * Fehlen Unterlagen, obwohl die Veranstaltung bald ist? Bei Sonstigem gibt es nichts Bestimmtes zu erwarten,
+ * deshalb zählen nur Arten mit festen Unterlagen. "tage" ist der Vorlauf, ab dem der Hinweis erscheint.
+ */
+export function unterlagenFehlen(e: Listeneintrag, heuteIso: string, tage = 21): boolean {
+  if (e.dateienAnzahl > 0) return false;
+  if (!e.values.arten.some((a) => a !== "sonstiges")) return false;
+  const bis = tageZwischen(heuteIso, e.values.datum);
+  return bis >= 0 && bis <= tage;
 }
 
 /** Die jüngste Änderung, wenn sie höchstens "tage" Tage zurückliegt. */
@@ -161,11 +225,41 @@ export function zusammenfassung(liste: Listeneintrag[], heuteIso: string) {
     anstehend: anstehend.length,
     knapp: anstehend.filter((e) => knappAngemeldet(e)).length,
     geaendert: anstehend.filter((e) => juengsteAenderung(e, heuteIso, 7)).length,
-    ohneUnterlagen: anstehend.filter((e) => e.dateien.length === 0).length,
+    ohneUnterlagen: anstehend.filter((e) => e.dateienAnzahl === 0).length,
   };
 }
 
-/** Nächste Veranstaltung ab heute, falls es eine gibt. */
-export function naechste(liste: Listeneintrag[], heuteIso: string): Listeneintrag | null {
-  return filtere(liste, { zeit: "anstehend" }, heuteIso)[0] ?? null;
+
+export type Gruppe = { schluessel: string; titel: string; eintraege: Listeneintrag[] };
+
+/** Montag der Woche als UTC-Tag in Millisekunden. */
+function wochenStart(iso: string): number {
+  const [j, m, t] = iso.slice(0, 10).split("-").map(Number);
+  const tag = Date.UTC(j, m - 1, t);
+  const wochentag = (new Date(tag).getUTCDay() + 6) % 7; // Montag = 0
+  return tag - wochentag * 86_400_000;
+}
+
+/**
+ * Anstehendes wird nach Wochen sortiert gezeigt: "Diese Woche", "Nächste Woche", danach nach Monat.
+ * Vergangenes und "Alle" werden nach Monat gruppiert.
+ */
+export function gruppiere(liste: Listeneintrag[], zeit: ZeitAuswahl, heuteIso: string): Gruppe[] {
+  if (zeit !== "anstehend") {
+    return nachMonat(liste).map((g) => ({ schluessel: g.monat, titel: monatTitel(g.monat), eintraege: g.eintraege }));
+  }
+  const gruppen: Gruppe[] = [];
+  for (const e of liste) {
+    const wochen = Math.round((wochenStart(e.values.datum) - wochenStart(heuteIso)) / (7 * 86_400_000));
+    const [schluessel, titel] =
+      wochen <= 0
+        ? ["woche-0", "Diese Woche"]
+        : wochen === 1
+          ? ["woche-1", "Nächste Woche"]
+          : [e.values.datum.slice(0, 7), monatTitel(e.values.datum.slice(0, 7))];
+    const letzte = gruppen[gruppen.length - 1];
+    if (letzte && letzte.schluessel === schluessel) letzte.eintraege.push(e);
+    else gruppen.push({ schluessel, titel, eintraege: [e] });
+  }
+  return gruppen;
 }

@@ -2,17 +2,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  alsListeneintrag,
   betreuungKurz,
   feldBezeichnung,
+  betreuungNoetig,
   filtere,
+  gruppiere,
   juengsteAenderung,
   knappAngemeldet,
   nachMonat,
   technikKurz,
+  unterlagenFehlen,
   zusammenfassung,
   type Listeneintrag,
 } from "../lib/dashboard.ts";
-import { heuteBerlin, inTagen, tageZwischen } from "../lib/format.ts";
+import { datumTeile, heuteBerlin, inTagen, tageZwischen } from "../lib/format.ts";
 import { emptyValues, type FormValues } from "../lib/registration.ts";
 
 const HEUTE = "2026-11-15";
@@ -22,8 +26,7 @@ function eintrag(id: string, teil: Partial<FormValues>, extra: Partial<Listenein
     id,
     values: { ...emptyValues(), titel: id, lehrkraft: "Frau Test", ort: "Aula", beginn: "18:00", ende: "20:00", ...teil },
     erstelltAm: "2026-10-01T10:00:00.000Z",
-    geaendertAm: "2026-10-01T10:00:00.000Z",
-    dateien: [],
+    dateienAnzahl: 0,
     aenderungen: [],
     ...extra,
   };
@@ -59,6 +62,59 @@ describe("Filtern und Sortieren", () => {
   it("gruppiert nach Monat", () => {
     const gruppen = nachMonat(filtere(liste, { zeit: "anstehend" }, HEUTE));
     assert.deepEqual(gruppen.map((g) => [g.monat, g.eintraege.length]), [["2026-11", 2], ["2026-12", 2]]);
+  });
+});
+
+describe("Gruppieren und Hinweise", () => {
+  it("gruppiert Anstehendes nach Wochen, danach nach Monat", () => {
+    // HEUTE ist ein Sonntag (15.11.2026): diese Woche reicht bis heute, nächste Woche beginnt am Montag.
+    const eintraege = [
+      eintrag("a", { datum: "2026-11-15" }),
+      eintrag("b", { datum: "2026-11-16" }),
+      eintrag("c", { datum: "2026-11-22" }),
+      eintrag("d", { datum: "2026-11-23" }),
+      eintrag("e", { datum: "2026-12-24" }),
+    ];
+    const gruppen = gruppiere(eintraege, "anstehend", HEUTE);
+    assert.deepEqual(
+      gruppen.map((g) => [g.titel, g.eintraege.map((x) => x.id).join("")]),
+      [["Diese Woche", "a"], ["Nächste Woche", "bc"], ["November 2026", "d"], ["Dezember 2026", "e"]],
+    );
+    const alt = gruppiere([eintrag("x", { datum: "2026-10-20" })], "vergangen", HEUTE);
+    assert.equal(alt[0].titel, "Oktober 2026");
+  });
+
+  it("meldet fehlende Unterlagen nur bei Arten mit festen Unterlagen und nur kurz vorher", () => {
+    assert.ok(unterlagenFehlen(eintrag("k", { datum: "2026-11-25", arten: ["konzert"] }), HEUTE));
+    assert.ok(!unterlagenFehlen(eintrag("f", { datum: "2026-12-20", arten: ["konzert"] }), HEUTE), "noch zu früh");
+    assert.ok(!unterlagenFehlen(eintrag("s", { datum: "2026-11-25", arten: ["sonstiges"] }), HEUTE));
+    assert.ok(!unterlagenFehlen(eintrag("v", { datum: "2026-11-01", arten: ["konzert"] }), HEUTE), "vorbei");
+    const mitDatei = eintrag("d", { datum: "2026-11-25", arten: ["konzert"] }, { dateienAnzahl: 1 });
+    assert.ok(!unterlagenFehlen(mitDatei, HEUTE));
+  });
+
+  it("liefert Datumsteile und die Techniker", () => {
+    assert.deepEqual(datumTeile("2026-11-23"), { tag: "23", wochentag: "Mo.", monat: "Nov." });
+    assert.equal(betreuungNoetig(emptyValues()), null);
+    assert.equal(betreuungNoetig({ ...emptyValues(), betreuung_licht: true }), "Licht");
+  });
+});
+
+describe("Verkleinern für den Browser", () => {
+  it("gibt keine privaten Felder an die Liste weiter", () => {
+    const voll = {
+      id: "x",
+      values: { ...emptyValues(), titel: "T", email: "geheim@schule.example", anmerkungen: "intern", technische_details: "intern" },
+      erstelltAm: "2026-10-01T10:00:00.000Z",
+      dateien: [1, 2],
+      aenderungen: [],
+    };
+    const klein = alsListeneintrag(voll);
+    assert.equal(klein.dateienAnzahl, 2);
+    const text = JSON.stringify(klein);
+    assert.ok(!text.includes("geheim@"));
+    assert.ok(!text.includes("intern"));
+    assert.equal(klein.values.titel, "T");
   });
 });
 

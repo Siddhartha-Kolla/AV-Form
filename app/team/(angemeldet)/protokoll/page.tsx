@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { Laden } from "@/components/laden";
 import { datumZeitMitSekunden, geraetKurz } from "@/lib/format";
 import { GRUPPEN, ereignisseDerGruppe, ereignisText, type GruppeId } from "@/lib/protokoll-ereignisse";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
@@ -31,7 +33,7 @@ function eintrag(wert: string | string[] | undefined): string {
   return (Array.isArray(wert) ? wert[0] : wert) ?? "";
 }
 
-export default async function ProtokollSeite({
+async function ProtokollInhalt({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -139,5 +141,17 @@ export default async function ProtokollSeite({
         </Link>
       )}
     </div>
+  );
+}
+
+export default function ProtokollSeite({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  return (
+    <Suspense fallback={<Laden />}>
+      <ProtokollInhalt searchParams={searchParams} />
+    </Suspense>
   );
 }

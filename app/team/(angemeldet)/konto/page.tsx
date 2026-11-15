@@ -1,3 +1,5 @@
+import { Laden } from "@/components/laden";
+import { Suspense } from "react";
 import { ROLLEN } from "@/lib/berechtigungen";
 import { datumZeit, geraetKurz } from "@/lib/format";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
@@ -6,7 +8,7 @@ import { AndereSitzungenBeenden, PasswortAendern } from "./konto-forms";
 
 export const metadata = { title: "Mein Konto | Technikteam" };
 
-export default async function KontoSeite() {
+async function KontoInhalt() {
   const { konto, sitzungId } = await verlangeSitzung({ passwortWechsel: true });
   const sitzungen = listeSitzungen(konto.id);
   const andere = sitzungen.filter((s) => s.id !== sitzungId);
@@ -59,5 +61,13 @@ export default async function KontoSeite() {
         </section>
       )}
     </div>
+  );
+}
+
+export default function KontoSeite() {
+  return (
+    <Suspense fallback={<Laden />}>
+      <KontoInhalt />
+    </Suspense>
   );
 }

@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { Laden } from "@/components/laden";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Download } from "lucide-react";
 import { darf } from "@/lib/berechtigungen";
@@ -40,7 +42,7 @@ function Liste({ zeilen }: { zeilen: [string, ReactNode][] }) {
   );
 }
 
-export default async function AnmeldungSeite({ params }: { params: Promise<{ id: string }> }) {
+async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) {
   const { konto } = await verlangeSitzung({ berechtigung: "anmeldungen.lesen" });
   const { id } = await params;
   const ergebnis = oeffneFuerTeam(konto, id, await anfrageKontext());
@@ -198,5 +200,13 @@ export default async function AnmeldungSeite({ params }: { params: Promise<{ id:
         )}
       </div>
     </div>
+  );
+}
+
+export default function AnmeldungSeite({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={<Laden />}>
+      <AnmeldungInhalt params={params} />
+    </Suspense>
   );
 }

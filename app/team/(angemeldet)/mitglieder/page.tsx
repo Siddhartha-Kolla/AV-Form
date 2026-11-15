@@ -1,3 +1,5 @@
+import { Laden } from "@/components/laden";
+import { Suspense } from "react";
 import { ROLLEN } from "@/lib/berechtigungen";
 import { datumZeit } from "@/lib/format";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
@@ -7,7 +9,7 @@ import { MitgliedAnlegen, MitgliedVerwalten } from "./mitglieder-ui";
 
 export const metadata = { title: "Mitglieder | Technikteam" };
 
-export default async function MitgliederSeite() {
+async function MitgliederInhalt() {
   const { konto } = await verlangeSitzung({ berechtigung: "team.verwalten" });
   const mitglieder = listeKonten();
 
@@ -74,5 +76,13 @@ export default async function MitgliederSeite() {
         </p>
       )}
     </div>
+  );
+}
+
+export default function MitgliederSeite() {
+  return (
+    <Suspense fallback={<Laden />}>
+      <MitgliederInhalt />
+    </Suspense>
   );
 }

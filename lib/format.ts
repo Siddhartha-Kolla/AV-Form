@@ -112,3 +112,15 @@ export function datumNumerisch(iso: string): string {
   const [j, m, t] = iso.slice(0, 10).split("-");
   return `${t}.${m}.${j}`;
 }
+
+/** Teile eines Datums für die Übersicht: Tag "23", Wochentag "Mo.", Monat "Nov.". */
+export function datumTeile(iso: string): { tag: string; wochentag: string; monat: string } {
+  const teile = new Intl.DateTimeFormat("de-DE", {
+    day: "numeric",
+    weekday: "short",
+    month: "short",
+    timeZone: "UTC",
+  }).formatToParts(new Date(alsUtcTag(iso)));
+  const hole = (typ: string) => teile.find((t) => t.type === typ)?.value ?? "";
+  return { tag: hole("day"), wochentag: hole("weekday"), monat: hole("month") };
+}

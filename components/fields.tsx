@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ChangeEvent, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export const control =
@@ -117,14 +117,25 @@ export function SelectField({
   className,
   hint,
   name,
-}: Common & { children: ReactNode; defaultValue?: string; disabled?: boolean; name?: string }) {
+  value,
+  onChange,
+}: Common & {
+  children: ReactNode;
+  defaultValue?: string;
+  disabled?: boolean;
+  name?: string;
+  value?: string;
+  onChange?: (e: ChangeEvent<HTMLSelectElement>) => void;
+}) {
   return (
     <div className={className}>
       <Label id={id} label={label} />
       <select
         id={id}
         name={name ?? id}
-        defaultValue={defaultValue}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        value={value}
+        onChange={onChange}
         disabled={disabled}
         aria-describedby={hint ? `${id}-hint` : undefined}
         className={cn(control, "select h-11")}
