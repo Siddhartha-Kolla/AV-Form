@@ -3,22 +3,19 @@
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox, CountField, Section, TextArea, TextField } from "@/components/fields";
-import { FileSlot } from "@/components/file-slot";
+import { Checkbox, CountField, FieldError, Section, TextArea, TextField } from "@/components/fields";
+import { FileDrop } from "@/components/file-drop";
 import { datumLang, sendeAnmeldung } from "@/lib/submit";
 import {
   ARTEN,
-  DOKUMENTE,
   TECH_GROUPS,
   TERMINE,
-  benoetigteDokumente,
+  VORSCHLAEGE,
   emptyValues,
   parseDatum,
   fristPruefen,
-  pruefeDatei,
   validate,
   type ArtId,
-  type DokumentKategorie,
   type FormValues,
   type TerminId,
 } from "@/lib/registration";
@@ -33,8 +30,7 @@ function heuteAlsIso(): string {
 
 export function RegistrationForm() {
   const [values, setValues] = useState<FormValues>(emptyValues);
-  const [files, setFiles] = useState<Partial<Record<DokumentKategorie, File>>>({});
-  const [fileErrors, setFileErrors] = useState<Partial<Record<DokumentKategorie, string>>>({});
+  const [files, setFiles] = useState<File[]>([]);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
@@ -50,7 +46,7 @@ export function RegistrationForm() {
   const sichtbareFehler = Object.entries(alle);
 
   const frist = fristPruefen(values.datum, values.arten, heute);
-  const dokumente = benoetigteDokumente(values.arten);
+  const vorschlaege = ARTEN.filter((a) => values.arten.includes(a.id) && VORSCHLAEGE[a.id].length > 0);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -70,17 +66,6 @@ export function RegistrationForm() {
     set("termine", { ...values.termine, [id]: { ...values.termine[id], [field]: value } });
   }
 
-  function selectFile(kategorie: DokumentKategorie, file: File | null) {
-    const problem = file ? pruefeDatei(file) : null;
-    setFileErrors((e) => ({ ...e, [kategorie]: problem ?? undefined }));
-    setFiles((f) => {
-      const next = { ...f };
-      if (file && !problem) next[kategorie] = file;
-      else delete next[kategorie];
-      return next;
-    });
-  }
-
   function focusField(id: string) {
     document.getElementById(id)?.focus();
   }
@@ -88,7 +73,7 @@ export function RegistrationForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitted(true);
-    if (Object.keys(alle).length > 0 || Object.values(fileErrors).some(Boolean)) {
+    if (Object.keys(alle).length > 0) {
       requestAnimationFrame(() => summary.current?.focus());
       return;
     }
@@ -104,8 +89,7 @@ export function RegistrationForm() {
 
   function reset() {
     setValues(emptyValues());
-    setFiles({});
-    setFileErrors({});
+    setFiles([]);
     setTouched({});
     setSubmitted(false);
     setStatus("idle");
@@ -124,7 +108,7 @@ export function RegistrationForm() {
         <p className="mt-3 max-w-[65ch] leading-relaxed text-muted-foreground">
           Kommt keine Mail an, schauen Sie bitte im Spam-Ordner nach. Der Link ist nur für Sie bestimmt.
         </p>
-        <Button variant="outline" className="mt-8 h-10 px-4" onClick={reset}>
+        <Button variant="outline" className="mt-8 h-11 border-input bg-surface px-5 shadow-none" onClick={reset}>
           Weitere Veranstaltung anmelden
         </Button>
       </div>
@@ -144,7 +128,7 @@ export function RegistrationForm() {
       }}
       aria-busy={sending}
     >
-      <header className="mb-14">
+      <header className="mb-10 sm:mb-14">
         <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">Veranstaltung anmelden</h1>
         <p className="mt-4 max-w-[60ch] leading-relaxed text-muted-foreground">
           Aus Ihrer Anmeldung planen wir Technik und Personal. Je früher sie bei uns liegt, desto mehr lässt sich
@@ -304,18 +288,21 @@ export function RegistrationForm() {
                     label={item.label}
                     checked={!!values.tech[item.id]}
                     onChange={(on) => toggleTech(item.id, on, item.excludes)}
-                  >
-                    {item.count && (
-                      <CountField
-                        id={item.count}
-                        label={item.label}
-                        value={values[item.count]}
-                        onChange={(v) => set(item.count!, v)}
-                        disabled={!values.tech[item.id]}
-                        error={fehler(item.count)}
-                      />
-                    )}
-                  </Checkbox>
+                    aside={
+                      item.count && values.tech[item.id] ? (
+                        <CountField
+                          id={item.count}
+                          label={item.label}
+                          value={values[item.count]}
+                          onChange={(v) => set(item.count!, v)}
+                          error={!!fehler(item.count)}
+                        />
+                      ) : undefined
+                    }
+                    below={
+                      item.count ? <FieldError id={`${item.count}-error`}>{fehler(item.count)}</FieldError> : undefined
+                    }
+                  />
                 ))}
               </fieldset>
             ))}
@@ -360,7 +347,7 @@ export function RegistrationForm() {
                 key={t.id}
                 role="group"
                 aria-labelledby={`termin_${t.id}_titel`}
-                className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-[8rem_11.5rem_7.5rem_1fr] md:items-end"
+                className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-[6.5rem_10rem_7rem_1fr] md:items-end"
               >
                 <p id={`termin_${t.id}_titel`} className="col-span-2 text-sm font-medium md:col-span-1 md:flex md:h-10 md:items-center">
                   {t.label}
@@ -370,7 +357,7 @@ export function RegistrationForm() {
                   label="Datum"
                   hideLabel={i > 0}
                   type={t.freitext ? "text" : "date"}
-                  placeholder={t.freitext ? "z. B. 10. und 12.06." : undefined}
+                  placeholder={t.freitext ? "mehrere möglich" : undefined}
                   className={t.freitext ? "col-span-2 md:col-span-1" : undefined}
                   value={values.termine[t.id].datum}
                   onChange={(e) => setTermin(t.id, "datum", e.target.value)}
@@ -411,33 +398,27 @@ export function RegistrationForm() {
         </Section>
 
         <Section id="unterlagen" nr="8" title="Unterlagen">
-          {dokumente.length === 0 ? (
-            <p className="max-w-[65ch] leading-relaxed text-muted-foreground">
-              Welche Dateien wir brauchen, hängt von der Art der Veranstaltung ab. Sobald Sie in Abschnitt 2 etwas
-              gewählt haben, steht es hier.
+          <div className="mb-4 max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
+            <p>
+              Laden Sie hoch, was uns beim Planen hilft. Nichts davon ist Pflicht, und Sie können alles auch später über
+              Ihren privaten Link nachreichen.
             </p>
-          ) : (
-            <div className="space-y-8">
-              <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                Die Unterlagen können Sie auch später über Ihren privaten Link nachreichen. Erlaubt sind PDF, Word,
-                PowerPoint, ODT, TXT, MP3 und WAV, jeweils bis 20 MB.
+            {vorschlaege.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {vorschlaege.map((a) => (
+                  <li key={a.id}>
+                    <span className="font-medium text-foreground">{a.label}:</span> {VORSCHLAEGE[a.id].join(", ")}.
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2">
+                Häufig helfen ein Ablaufplan, ein Skript, ein Mikrofonplan oder Präsentationen. Welche Art Sie in
+                Abschnitt 2 wählen, bestimmt, was wir hier vorschlagen.
               </p>
-              {dokumente.map((k) => (
-                <FileSlot
-                  key={k}
-                  id={`datei_${k}`}
-                  label={DOKUMENTE[k].label}
-                  hint={DOKUMENTE[k].hint}
-                  fuer={ARTEN.filter((a) => DOKUMENTE[k].fuer.includes(a.id) && values.arten.includes(a.id))
-                    .map((a) => a.label)
-                    .join(", ")}
-                  file={files[k] ?? null}
-                  error={fileErrors[k]}
-                  onSelect={(f) => selectFile(k, f)}
-                />
-              ))}
-            </div>
-          )}
+            )}
+          </div>
+          <FileDrop files={files} onChange={setFiles} />
         </Section>
 
         <div className="mt-16">
@@ -446,7 +427,7 @@ export function RegistrationForm() {
             je nach Umfang nicht mehr umsetzen.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-4">
-            <Button type="submit" className="h-11 px-6 text-[15px]" disabled={sending}>
+            <Button type="submit" className="h-12 w-full px-8 text-[15px] sm:w-auto" disabled={sending}>
               {sending && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
               {sending ? "Wird gesendet" : "Anmeldung senden"}
             </Button>

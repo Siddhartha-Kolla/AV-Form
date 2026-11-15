@@ -1,4 +1,4 @@
-import type { DokumentKategorie, FormValues } from "@/lib/registration";
+import type { FormValues } from "@/lib/registration";
 
 export type SubmitResult = { ok: true } | { ok: false; message: string };
 
@@ -8,7 +8,7 @@ export type SubmitResult = { ok: true } | { ok: false; message: string };
  * verschlüsselt, in SQLite schreibt und den privaten Link per E-Mail verschickt.
  */
 export async function sendeAnmeldung(
-  ...args: [values: FormValues, files: Partial<Record<DokumentKategorie, File>>]
+  ...args: [values: FormValues, files: File[]]
 ): Promise<SubmitResult> {
   void args;
   await new Promise((resolve) => setTimeout(resolve, 700));

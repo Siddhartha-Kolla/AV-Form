@@ -121,58 +121,27 @@ export function emptyValues(): FormValues {
 
 /* Unterlagen ------------------------------------------------------------ */
 
-export type DokumentKategorie =
-  | "skript"
-  | "ablaufplan"
-  | "mikrofonplan"
-  | "praesentation"
-  | "zuspielung"
-  | "sonstiges";
-
-export const DOKUMENTE: Record<
-  DokumentKategorie,
-  { label: string; hint: string; fuer: ArtId[] }
-> = {
-  skript: {
-    label: "Vollständiges Skript",
-    hint: "Licht-Cues grün markieren, Ton-Cues rot. Cues eindeutig benennen, zum Beispiel „Übergang zu Cue 2“ oder „Türgeräusch abspielen“. Hinweise zu Spotlights und Beamer gehören ebenfalls ins Skript.",
-    fuer: ["theater"],
-  },
-  ablaufplan: {
-    label: "Ablaufplan",
-    hint: "Zeitlicher Ablauf: Proben, Einlass, Beginn, Reihenfolge der Programmpunkte, Pausen, Ende und besondere Umbauten. Bei Konzerten dazu die Lichtwechsel mit Zeitpunkt.",
-    fuer: ["konzert", "podium", "info", "vortrag"],
-  },
-  mikrofonplan: {
-    label: "Mikrofonplan",
-    hint: "Welche Person bekommt welches Mikrofon, bei Bedarf mit Kanalzuordnung. Bei Diskussionen ein Mikrofon für Fragen aus dem Publikum nicht vergessen.",
-    fuer: ["konzert", "podium", "info", "vortrag"],
-  },
-  praesentation: {
-    label: "Präsentationen oder Videos",
-    hint: "Dazu kurze Hinweise zu Beamer oder BIMA und zur gewünschten Lichtstimmung.",
-    fuer: ["podium", "info", "vortrag"],
-  },
-  zuspielung: {
-    label: "Musikeinspielungen und Zuspielungen",
-    hint: "Titel in der Reihenfolge, in der sie laufen sollen.",
-    fuer: ["konzert"],
-  },
-  sonstiges: {
-    label: "Sonstige technische Hinweise",
-    hint: "Alles, was für Licht, Ton oder Medien wichtig ist und anderswo nicht passt.",
-    fuer: ["theater"],
-  },
+/** Nur Anregungen. Hochgeladen werden darf alles, nichts davon ist Pflicht. */
+export const VORSCHLAEGE: Record<ArtId, string[]> = {
+  theater: [
+    "das vollständige Skript mit grün markierten Licht-Cues und rot markierten Ton-Cues",
+    "Hinweise zu Spotlights und Beamer",
+  ],
+  konzert: [
+    "Ablauf mit Programmpunkten und Pausen",
+    "Mikrofonplan",
+    "Lichtwechsel mit Zeitpunkt",
+    "Musikeinspielungen",
+  ],
+  podium: ["Ablaufplan", "Mikrofonplan mit Zuordnung zu den Personen", "Präsentationen oder Videos"],
+  info: ["Ablaufplan", "Mikrofonplan", "Präsentationen oder Videos"],
+  vortrag: ["Ablaufplan", "Mikrofonplan", "Präsentationen oder Videos"],
+  sonstiges: [],
 };
-
-export function benoetigteDokumente(arten: ArtId[]): DokumentKategorie[] {
-  return (Object.keys(DOKUMENTE) as DokumentKategorie[]).filter((k) =>
-    DOKUMENTE[k].fuer.some((a) => arten.includes(a)),
-  );
-}
 
 /** Platzhalter, bis die Schule das Limit festlegt. */
 export const MAX_DATEI_MB = 20;
+export const MAX_DATEIEN = 10;
 export const ERLAUBTE_ENDUNGEN = ["pdf", "docx", "doc", "pptx", "odt", "txt", "mp3", "wav"];
 
 export function pruefeDatei(file: File): string | null {

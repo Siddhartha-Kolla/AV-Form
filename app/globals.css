@@ -22,6 +22,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-surface: var(--surface);
   --color-note: var(--note);
   --color-note-foreground: var(--note-foreground);
   --radius-sm: 0.25rem;
@@ -35,9 +36,10 @@
 */
 :root {
   color-scheme: light;
-  --background: oklch(0.993 0.002 215);
+  --background: oklch(0.972 0.004 215);
+  --surface: oklch(1 0 0);
   --foreground: oklch(0.22 0.015 215);
-  --muted: oklch(0.965 0.005 215);
+  --muted: oklch(0.955 0.006 215);
   --muted-foreground: oklch(0.48 0.02 215);
   --secondary: oklch(0.955 0.006 215);
   --secondary-foreground: oklch(0.25 0.015 215);
@@ -111,7 +113,7 @@
     margin: 0;
     border: 1px solid var(--input);
     border-radius: 0.25rem;
-    background: var(--background);
+    background: var(--surface);
     display: grid;
     place-content: center;
     transition: background-color 120ms ease-out, border-color 120ms ease-out;
