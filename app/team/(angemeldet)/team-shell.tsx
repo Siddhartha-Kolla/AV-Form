@@ -1,15 +1,18 @@
 import type { ReactNode } from "react";
 import { darf } from "@/lib/berechtigungen";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
-import { TeamNav } from "@/components/team-nav";
+import { TeamNav, type NavEintrag } from "@/components/team-nav";
 import { abmeldenAktion } from "./actions";
 
 export async function TeamShell({ children }: { children: ReactNode }) {
   const { konto } = await verlangeSitzung({ passwortWechsel: true });
 
-  const eintraege = konto.mussPasswortAendern
+  const eintraege: NavEintrag[] = konto.mussPasswortAendern
     ? []
     : [
+        ...(darf(konto.rolle, "anmeldungen.lesen")
+          ? [{ href: "/team", text: "Anmeldungen", exakt: true, auchBei: ["/team/anmeldungen"] }]
+          : []),
         ...(darf(konto.rolle, "team.verwalten") ? [{ href: "/team/mitglieder", text: "Mitglieder" }] : []),
         ...(darf(konto.rolle, "protokoll.lesen") ? [{ href: "/team/protokoll", text: "Protokoll" }] : []),
         { href: "/team/konto", text: "Mein Konto" },

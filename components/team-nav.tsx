@@ -4,12 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export function TeamNav({ eintraege }: { eintraege: { href: string; text: string }[] }) {
+export type NavEintrag = {
+  href: string;
+  text: string;
+  /** Nur bei genau diesem Pfad aktiv. */
+  exakt?: boolean;
+  /** Zusätzliche Pfade, bei denen der Eintrag auch aktiv ist. */
+  auchBei?: string[];
+};
+
+export function TeamNav({ eintraege }: { eintraege: NavEintrag[] }) {
   const pfad = usePathname();
   return (
     <nav aria-label="Hauptnavigation" className="-mx-2 flex flex-wrap gap-1">
       {eintraege.map((e) => {
-        const aktiv = pfad === e.href || pfad.startsWith(`${e.href}/`);
+        const aktiv =
+          pfad === e.href ||
+          (!e.exakt && pfad.startsWith(`${e.href}/`)) ||
+          (e.auchBei ?? []).some((p) => pfad === p || pfad.startsWith(`${p}/`));
         return (
           <Link
             key={e.href}

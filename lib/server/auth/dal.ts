@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { darf, type Berechtigung } from "../../berechtigungen.ts";
 import { proxyVertrauen } from "../config.ts";
 import type { Kontext } from "./fehler.ts";
@@ -34,6 +35,9 @@ export async function anfrageKontext(): Promise<Kontext> {
 
 /** Die aktuelle Sitzung oder null. Wird pro Anfrage nur einmal berechnet. */
 export const aktuelleSitzung = cache(async (): Promise<Angemeldet | null> => {
+  // Die Prüfung nutzt die aktuelle Uhrzeit und eine synchrone Datenbank. Beides gehört
+  // nie in den Prerender. connection() verschiebt es auf den Zeitpunkt der echten Anfrage.
+  await connection();
   const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
   const treffer = pruefeSitzung(token);

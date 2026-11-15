@@ -84,6 +84,18 @@ const eintraege: FormValues[] = [
     anmerkungen: "Ein Mikrofon für Fragen aus dem Publikum.",
   }),
   beispiel({
+    titel: "Beispiel: Weihnachtskonzert",
+    lehrkraft: "Frau Beispiel",
+    datum: tagePlus(-30),
+    beginn: "18:00",
+    ende: "20:00",
+    ort: "Aula",
+    arten: ["konzert"],
+    tech: { mikrofone: true, licht_buehne: true },
+    mikrofone_anzahl: "4",
+    betreuung_ton: true,
+  }),
+  beispiel({
     titel: "Beispiel: Schulversammlung",
     lehrkraft: "Frau Muster",
     datum: tagePlus(100),

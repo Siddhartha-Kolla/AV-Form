@@ -1,0 +1,123 @@
+// Aufruf: npm run test:server
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  betreuungKurz,
+  feldBezeichnung,
+  filtere,
+  juengsteAenderung,
+  knappAngemeldet,
+  nachMonat,
+  technikKurz,
+  zusammenfassung,
+  type Listeneintrag,
+} from "../lib/dashboard.ts";
+import { heuteBerlin, inTagen, tageZwischen } from "../lib/format.ts";
+import { emptyValues, type FormValues } from "../lib/registration.ts";
+
+const HEUTE = "2026-11-15";
+
+function eintrag(id: string, teil: Partial<FormValues>, extra: Partial<Listeneintrag> = {}): Listeneintrag {
+  return {
+    id,
+    values: { ...emptyValues(), titel: id, lehrkraft: "Frau Test", ort: "Aula", beginn: "18:00", ende: "20:00", ...teil },
+    erstelltAm: "2026-10-01T10:00:00.000Z",
+    geaendertAm: "2026-10-01T10:00:00.000Z",
+    dateien: [],
+    aenderungen: [],
+    ...extra,
+  };
+}
+
+const liste = [
+  eintrag("alt", { datum: "2026-10-20", arten: ["theater"] }),
+  eintrag("bald", { datum: "2026-11-20", arten: ["konzert"], lehrkraft: "Herr Maier", ort: "Turnhalle" }),
+  eintrag("spaeter", { datum: "2026-12-05", beginn: "09:00", arten: ["vortrag", "info"] }),
+  eintrag("spaeter2", { datum: "2026-12-05", beginn: "08:00", arten: ["podium"] }),
+  eintrag("heute", { datum: HEUTE, arten: ["sonstiges"], art_sonstiges: "Verabschiedung" }),
+];
+
+describe("Filtern und Sortieren", () => {
+  it("zeigt standardmäßig Anstehendes, nach Datum und Uhrzeit aufsteigend", () => {
+    const ids = filtere(liste, { zeit: "anstehend" }, HEUTE).map((e) => e.id);
+    assert.deepEqual(ids, ["heute", "bald", "spaeter2", "spaeter"]);
+  });
+
+  it("zeigt Vergangenes, neueste zuerst, und Alles", () => {
+    assert.deepEqual(filtere(liste, { zeit: "vergangen" }, HEUTE).map((e) => e.id), ["alt"]);
+    assert.equal(filtere(liste, { zeit: "alle" }, HEUTE).length, 5);
+    assert.equal(filtere(liste, { zeit: "alle" }, HEUTE)[0].id, "spaeter");
+  });
+
+  it("filtert nach Art und sucht in Titel, Lehrkraft und Ort", () => {
+    assert.deepEqual(filtere(liste, { zeit: "alle", art: "vortrag" }, HEUTE).map((e) => e.id), ["spaeter"]);
+    assert.deepEqual(filtere(liste, { zeit: "alle", suche: "maier turnhalle" }, HEUTE).map((e) => e.id), ["bald"]);
+    assert.deepEqual(filtere(liste, { zeit: "alle", suche: "  VERABSCHIEDUNG " }, HEUTE).map((e) => e.id), ["heute"]);
+    assert.deepEqual(filtere(liste, { zeit: "alle", suche: "gibtsnicht" }, HEUTE), []);
+  });
+
+  it("gruppiert nach Monat", () => {
+    const gruppen = nachMonat(filtere(liste, { zeit: "anstehend" }, HEUTE));
+    assert.deepEqual(gruppen.map((g) => [g.monat, g.eintraege.length]), [["2026-11", 2], ["2026-12", 2]]);
+  });
+});
+
+describe("Technik und Betreuung", () => {
+  it("fasst Technik für die Liste zusammen", () => {
+    const v = { ...emptyValues(), tech: { mikrofone: true, headsets: true, licht_buehne: true, buehne_umbau: true }, mikrofone_anzahl: "6" };
+    assert.equal(technikKurz(v), "Ton (6 Mikrofone), Licht, Bühne");
+    assert.equal(technikKurz(emptyValues()), "Keine Technik angegeben");
+    assert.equal(technikKurz({ ...emptyValues(), tech: { ton_kein: true, licht_raumlicht: true } }), "Keine zusätzliche Technik");
+  });
+
+  it("nennt die Betreuung", () => {
+    assert.equal(betreuungKurz(emptyValues()), "Ohne Techniker");
+    assert.equal(betreuungKurz({ ...emptyValues(), betreuung_ton: true, betreuung_licht: true }), "Techniker nötig: Ton und Licht");
+  });
+});
+
+describe("Status", () => {
+  it("erkennt zu knappe Anmeldungen am Tag der Anmeldung, nicht am heutigen Tag", () => {
+    const knapp = eintrag("k", { datum: "2026-11-20", arten: ["konzert"] }, { erstelltAm: "2026-11-01T10:00:00.000Z" });
+    assert.deepEqual(knappAngemeldet(knapp), { vorhanden: 19, noetig: 28, art: "Konzert" });
+    const rechtzeitig = eintrag("r", { datum: "2026-11-20", arten: ["konzert"] }, { erstelltAm: "2026-09-01T10:00:00.000Z" });
+    assert.equal(knappAngemeldet(rechtzeitig), null);
+    const absprache = eintrag("a", { datum: "2026-11-20", arten: ["sonstiges"] }, { erstelltAm: "2026-11-19T10:00:00.000Z" });
+    assert.equal(knappAngemeldet(absprache), null);
+  });
+
+  it("zeigt nur junge Änderungen", () => {
+    const e = eintrag("e", { datum: "2026-12-01" }, { aenderungen: [{ zeit: "2026-11-10T09:00:00.000Z", felder: ["ort"] }] });
+    assert.ok(juengsteAenderung(e, HEUTE, 14));
+    assert.equal(juengsteAenderung(e, "2026-12-30", 14), null);
+    assert.equal(juengsteAenderung(eintrag("x", {}), HEUTE), null);
+  });
+
+  it("zählt für die Zusammenfassung nur Anstehendes", () => {
+    const s = zusammenfassung(
+      [
+        eintrag("a", { datum: "2026-11-20", arten: ["konzert"] }, { erstelltAm: "2026-11-01T10:00:00.000Z" }),
+        eintrag("b", { datum: "2026-10-01" }),
+      ],
+      HEUTE,
+    );
+    assert.deepEqual(s, { anstehend: 1, knapp: 1, geaendert: 0, ohneUnterlagen: 1 });
+  });
+});
+
+describe("Beschriftungen und Datum", () => {
+  it("benennt Felder auf Deutsch", () => {
+    assert.equal(feldBezeichnung("mikrofone_anzahl"), "Anzahl Mikrofone");
+    assert.equal(feldBezeichnung("termine.generalprobe"), "Termin Generalprobe");
+    assert.equal(feldBezeichnung("unbekannt"), "unbekannt");
+  });
+
+  it("rechnet Tage und beschreibt sie", () => {
+    assert.equal(tageZwischen("2026-11-15", "2026-11-20"), 5);
+    assert.equal(inTagen("2026-11-15", HEUTE), "heute");
+    assert.equal(inTagen("2026-11-16", HEUTE), "morgen");
+    assert.equal(inTagen("2026-12-04", HEUTE), "in 19 Tagen");
+    assert.equal(inTagen("2026-11-12", HEUTE), "vor 3 Tagen");
+    assert.match(heuteBerlin(), /^\d{4}-\d{2}-\d{2}$/);
+  });
+});

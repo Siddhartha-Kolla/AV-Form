@@ -66,6 +66,14 @@ export function protokolliere(eintrag: ProtokollEintrag, kontext: Kontext): void
     );
 }
 
+/** Gab es dieses Ereignis von dieser Person für dieses Ziel schon in den letzten Minuten? */
+export function kuerzlichProtokolliert(akteurId: string, ereignis: EreignisId, zielId: string, minuten: number): boolean {
+  const grenze = new Date(Date.now() - minuten * 60_000).toISOString();
+  return !!db()
+    .prepare("SELECT 1 FROM protokoll WHERE akteur_id = ? AND ereignis = ? AND ziel_id = ? AND zeit >= ? LIMIT 1")
+    .get(akteurId, ereignis, zielId, grenze);
+}
+
 export type ProtokollZeile = {
   id: number;
   zeit: string;
