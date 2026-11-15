@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# lokale Daten: Datenbank und hochgeladene Dateien gehören nie ins Repo
+/data/
+!.env.example
+
+# Design-Werkzeug: Screenshots und Wegwerf-Entwürfe
+.impeccable/review/
+.impeccable/mocks/
