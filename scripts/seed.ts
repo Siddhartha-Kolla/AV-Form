@@ -4,6 +4,7 @@ import { emptyValues, type FormValues } from "../lib/registration.ts";
 import { aktualisiereAnmeldung, erstelleAnmeldung, findeNachId } from "../lib/server/anmeldungen.ts";
 import { speichereDatei } from "../lib/server/dateien.ts";
 import { db, dbSchliessen } from "../lib/server/db.ts";
+import { beispielDocx, beispielPdf, beispielWav } from "./beispieldateien.ts";
 
 if (process.env.NODE_ENV === "production") {
   console.error("Beispieldaten gehören nicht auf den Produktivserver.");
@@ -112,8 +113,56 @@ const eintraege: FormValues[] = [
 for (const [i, werte] of eintraege.entries()) {
   const { id, token } = erstelleAnmeldung(werte);
   if (i === 0) {
-    speichereDatei(id, "Beispiel-Ablaufplan.pdf", Buffer.from("Beispielinhalt"));
-    speichereDatei(id, "Beispiel-Mikrofonplan.docx", Buffer.from("Beispielinhalt"));
+    const ablauf = beispielPdf([
+      {
+        titel: "Ablaufplan Sommerkonzert (Beispiel)",
+        zeilen: [
+          "17:00 Uhr  Aufbau und Soundcheck in der Aula",
+          "18:00 Uhr  Einlass",
+          "18:30 Uhr  Begrüßung durch die Schulleitung",
+          "18:40 Uhr  Chor der Klassen 5 und 6, drei Stücke",
+          "19:10 Uhr  Schulorchester, Ouvertüre und zwei Sätze",
+          "19:45 Uhr  Pause, 20 Minuten",
+          "20:05 Uhr  Bigband, vier Stücke, Lichtwechsel bei jedem Titel",
+          "20:50 Uhr  Gemeinsames Schlusslied mit allen Beteiligten",
+          "21:00 Uhr  Ende, Abbau ab 21:15 Uhr",
+        ],
+      },
+      {
+        titel: "Besonderheiten (Beispiel)",
+        zeilen: [
+          "Der Chor steht auf den Podesten, vier Mikrofone von oben.",
+          "Das Klavier steht links und braucht zwei Mikrofone.",
+          "Bei der Bigband werden die Notenpultleuchten gebraucht.",
+          "Das Schlusslied läuft mit Playback vom Laptop.",
+        ],
+      },
+    ]);
+    speichereDatei(id, "Ablaufplan Sommerkonzert.pdf", ablauf);
+    speichereDatei(
+      id,
+      "Mikrofonplan.docx",
+      await beispielDocx("Mikrofonplan Sommerkonzert", [
+        ["Kanal", "Quelle", "Mikrofon"],
+        ["1 und 2", "Chor links", "Kondensator, Stativ"],
+        ["3 und 4", "Chor rechts", "Kondensator, Stativ"],
+        ["5", "Moderation", "Headset"],
+        ["6 und 7", "Klavier", "Kleinmembran, Paar"],
+        ["8", "Solist Bigband", "Handmikrofon"],
+      ]),
+    );
+    speichereDatei(id, "Einspielung Schlusslied.wav", beispielWav(3, 330));
+    speichereDatei(
+      id,
+      "Hinweise.txt",
+      Buffer.from(
+        [
+          "Bitte den Chor eine Minute vor Beginn auf die Bühne lassen.",
+          "Das Playback startet erst nach dem Zeichen der Leitung.",
+          "",
+        ].join("\n"),
+      ),
+    );
     const alt = findeNachId(id)!.values;
     aktualisiereAnmeldung(id, { ...alt, ort: "Aula (Bühne vorne)", mikrofone_anzahl: "8" });
   }

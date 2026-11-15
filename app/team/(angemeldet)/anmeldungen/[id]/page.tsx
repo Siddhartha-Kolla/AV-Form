@@ -1,44 +1,51 @@
 import { Suspense } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Laden } from "@/components/laden";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Download } from "lucide-react";
+import { ChevronLeft, TriangleAlert } from "lucide-react";
+import { Laden } from "@/components/laden";
+import { Unterlagen } from "@/components/unterlagen/unterlagen";
 import { darf } from "@/lib/berechtigungen";
 import {
+  alsListeneintrag,
   artBezeichnung,
-  betreuungKurz,
+  betreuungNoetig,
   feldBezeichnung,
   fristBeiAnmeldung,
   technikGruppen,
+  terminListe,
+  unterlagenFehlen,
 } from "@/lib/dashboard";
-import { datumLangMitWochentag, datumNumerisch, datumZeit, heuteBerlin, inTagen } from "@/lib/format";
-import { TERMINE, dateiGroesse } from "@/lib/registration";
+import {
+  datumKurz,
+  datumLangMitWochentag,
+  datumZeit,
+  heuteBerlin,
+  inTagen,
+} from "@/lib/format";
 import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
 import { oeffneFuerTeam } from "@/lib/server/team-anmeldungen";
 import { AnmeldungLoeschen } from "./loeschen";
 
 export const metadata = { title: "Anmeldung | Technikteam" };
 
-function Abschnitt({ titel, children }: { titel: string; children: ReactNode }) {
+/** Abschnitt mit kurzer Überschrift. Die Gliederung entsteht durch Abstand, nicht durch Rahmen. */
+function Abschnitt({ titel, hinweis, children }: { titel: string; hinweis?: string; children: ReactNode }) {
   return (
-    <section aria-label={titel} className="mt-10 first:mt-0">
-      <h2 className="mb-3 text-lg font-semibold tracking-tight">{titel}</h2>
-      {children}
+    <section aria-label={titel}>
+      <h2 className="text-lg font-semibold tracking-tight">{titel}</h2>
+      {hinweis && <p className="mt-0.5 text-sm text-muted-foreground">{hinweis}</p>}
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
 
-function Liste({ zeilen }: { zeilen: [string, ReactNode][] }) {
+function Fakt({ name, children }: { name: string; children: ReactNode }) {
   return (
-    <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-[15px] sm:grid-cols-[10rem_minmax(0,1fr)]">
-      {zeilen.map(([name, wert]) => (
-        <div key={name} className="contents">
-          <dt className="text-muted-foreground">{name}</dt>
-          <dd className="min-w-0 break-words">{wert}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="min-w-0">
+      <dt className="text-sm text-muted-foreground">{name}</dt>
+      <dd className="mt-0.5 break-words text-[15px] font-medium">{children}</dd>
+    </div>
   );
 }
 
@@ -52,15 +59,19 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
   const v = anmeldung.values;
   const heute = heuteBerlin();
   const frist = fristBeiAnmeldung(v, anmeldung.erstelltAm);
+  const knapp = frist && frist.status === "knapp" ? frist : null;
+  const fehlen = unterlagenFehlen(
+    { ...alsListeneintrag({ ...anmeldung, dateien, aenderungen }) },
+    heute,
+  );
   const gruppen = technikGruppen(v);
-  const termine = TERMINE.filter((t) => {
-    const x = v.termine[t.id];
-    return x.datum || x.uhrzeit || x.ort;
-  });
-  const arten = v.arten.map((a) => (a === "sonstiges" && v.art_sonstiges.trim() ? `Sonstiges: ${v.art_sonstiges.trim()}` : artBezeichnung(a)));
+  const termine = terminListe(v);
+  const techniker = betreuungNoetig(v);
+  const arten = v.arten.map((a) => (a === "sonstiges" && v.art_sonstiges.trim() ? v.art_sonstiges.trim() : artBezeichnung(a)));
+  const bevorstehend = v.datum >= heute;
 
   return (
-    <div className="max-w-[46rem]">
+    <div>
       <Link
         href="/team"
         className="-ml-1 mb-6 inline-flex items-center gap-1 rounded-md py-1 pr-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -69,136 +80,153 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
         Alle Anmeldungen
       </Link>
 
-      <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{v.titel}</h1>
-      <p className="mt-2 text-[15px]">
-        {datumLangMitWochentag(v.datum)}, {v.beginn} bis {v.ende} Uhr
-        {v.datum >= heute && <span className="text-muted-foreground"> ({inTagen(v.datum, heute)})</span>}
-      </p>
-      <p className="text-[15px] text-muted-foreground">{v.ort}</p>
-
-      {frist && frist.status === "knapp" && (
-        <p className="mt-5 rounded-md bg-note px-4 py-3 text-sm leading-relaxed text-note-foreground">
-          Zu knapp angemeldet. Die Anmeldung kam {frist.vorhanden} Tage vor der Veranstaltung, {frist.art} braucht
-          mindestens {frist.noetig / 7} Wochen.
+      <header>
+        <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">{v.titel}</h1>
+        <p className="mt-3 text-lg font-medium">
+          {datumLangMitWochentag(v.datum)}
+          {bevorstehend && <span className="ml-2 text-base font-normal text-muted-foreground">{inTagen(v.datum, heute)}</span>}
         </p>
-      )}
+        <p className="mt-0.5 text-[15px] tabular-nums text-muted-foreground">
+          {v.beginn} bis {v.ende} Uhr, {v.ort}
+        </p>
 
-      <div className="mt-10">
-        <Abschnitt titel="Allgemeines">
-          <Liste
-            zeilen={[
-              ["Lehrkraft", v.lehrkraft],
-              ["E-Mail", <a key="m" href={`mailto:${v.email}`} className="underline underline-offset-4">{v.email}</a>],
-              ["Art", arten.length > 0 ? arten.join(", ") : <span className="text-muted-foreground">Nicht angegeben</span>],
-              ["Angemeldet am", datumZeit(anmeldung.erstelltAm)],
-            ]}
-          />
-        </Abschnitt>
+        {(knapp || fehlen) && (
+          <ul className="mt-5 space-y-1.5 text-sm font-medium text-note-foreground">
+            {knapp && (
+              <li className="flex items-start gap-2">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>
+                  Zu knapp angemeldet: {knapp.vorhanden} statt {knapp.noetig} Tage Vorlauf für {knapp.art}.
+                </span>
+              </li>
+            )}
+            {fehlen && (
+              <li className="flex items-start gap-2">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>Es sind noch keine Unterlagen hochgeladen.</span>
+              </li>
+            )}
+          </ul>
+        )}
+      </header>
 
-        <Abschnitt titel="Technik">
-          {gruppen.length === 0 ? (
-            <p className="text-[15px] text-muted-foreground">Keine Technik angegeben.</p>
+      <dl className="mt-8 grid gap-x-8 gap-y-5 border-y border-border py-5 sm:grid-cols-3">
+        <Fakt name="Lehrkraft">
+          {v.lehrkraft}
+          <a href={`mailto:${v.email}`} className="mt-0.5 block text-sm font-normal text-muted-foreground underline underline-offset-4 hover:text-foreground">
+            {v.email}
+          </a>
+        </Fakt>
+        <Fakt name="Art">{arten.length > 0 ? arten.join(", ") : <span className="font-normal text-muted-foreground">Nicht angegeben</span>}</Fakt>
+        <Fakt name="Techniker">
+          {techniker ? (
+            techniker
           ) : (
-            <Liste zeilen={gruppen.map((g) => [g.gruppe, g.punkte.join(", ")] as [string, ReactNode])} />
+            <>
+              Keine
+              <span className="mt-0.5 block text-sm font-normal text-muted-foreground">Das Team richtet ein und holt ab.</span>
+            </>
           )}
-          <p className="mt-4 text-[15px]">{betreuungKurz(v)}</p>
-          {!v.betreuung_ton && !v.betreuung_licht && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Das Team richtet die Technik vor Beginn ein und holt sie danach ab.
-            </p>
-          )}
-        </Abschnitt>
+        </Fakt>
+      </dl>
 
-        {v.technische_details.trim() && (
-          <Abschnitt titel="Technische Details">
-            <p className="max-w-[65ch] whitespace-pre-wrap text-[15px] leading-relaxed">{v.technische_details}</p>
+      <div className="mt-12 grid gap-x-14 gap-y-14 lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="space-y-14">
+          <Abschnitt titel="Technik">
+            {gruppen.length === 0 ? (
+              <p className="text-[15px] text-muted-foreground">Keine Technik angegeben.</p>
+            ) : (
+              <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
+                {gruppen.map((g) => (
+                  <div key={g.gruppe}>
+                    <h3 className="mb-1.5 text-sm font-medium text-muted-foreground">{g.gruppe}</h3>
+                    <ul className="space-y-1 text-[15px]">
+                      {g.punkte.map((p) => (
+                        <li key={p.text}>
+                          {p.anzahl ? (
+                            <>
+                              <span className="font-semibold tabular-nums">{p.anzahl}</span> {p.text}
+                            </>
+                          ) : (
+                            p.text
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
           </Abschnitt>
-        )}
 
-        {termine.length > 0 && (
-          <Abschnitt titel="Termine">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[28rem] border-collapse text-left text-[15px]">
-                <caption className="sr-only">Termine rund um die Veranstaltung</caption>
-                <thead>
-                  <tr className="border-b border-border text-sm text-muted-foreground">
-                    <th scope="col" className="py-2 pr-4 font-medium">Termin</th>
-                    <th scope="col" className="py-2 pr-4 font-medium">Datum</th>
-                    <th scope="col" className="py-2 pr-4 font-medium">Uhrzeit</th>
-                    <th scope="col" className="py-2 font-medium">Ort / Anmerkung</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {termine.map((t) => {
-                    const x = v.termine[t.id];
-                    const datum = /^\d{4}-\d{2}-\d{2}$/.test(x.datum) ? datumNumerisch(x.datum) : x.datum;
-                    return (
-                      <tr key={t.id}>
-                        <th scope="row" className="py-2.5 pr-4 font-medium">{t.label}</th>
-                        <td className="py-2.5 pr-4 tabular-nums">{datum || "–"}</td>
-                        <td className="py-2.5 pr-4 tabular-nums">{x.uhrzeit || "–"}</td>
-                        <td className="py-2.5">{x.ort || "–"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Abschnitt>
-        )}
-
-        {v.anmerkungen.trim() && (
-          <Abschnitt titel="Anmerkungen">
-            <p className="max-w-[65ch] whitespace-pre-wrap text-[15px] leading-relaxed">{v.anmerkungen}</p>
-          </Abschnitt>
-        )}
-
-        <Abschnitt titel="Unterlagen">
-          {dateien.length === 0 ? (
-            <p className="text-[15px] text-muted-foreground">Die Lehrkraft hat noch nichts hochgeladen.</p>
-          ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {dateien.map((d) => (
-                <li key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3">
-                  <span className="min-w-0 flex-1 break-all text-[15px]">{d.name}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {dateiGroesse(d.groesse)} · hochgeladen am {datumNumerisch(d.erstelltAm)}
-                  </span>
-                  <a
-                    href={`/team/dateien/${anmeldung.id}/${d.id}`}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-surface px-3 text-sm font-medium transition-colors hover:border-foreground/50"
-                  >
-                    <Download className="size-4" aria-hidden="true" />
-                    Herunterladen
-                    <span className="sr-only">: {d.name}</span>
-                  </a>
+          <Abschnitt titel="Ablauf" hinweis="Alle Termine in zeitlicher Reihenfolge.">
+            <ol className="divide-y divide-border border-y border-border">
+              {termine.map((t) => (
+                <li key={t.id} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 py-3 text-[15px] sm:grid-cols-[7.5rem_minmax(0,1fr)]">
+                  <p className={t.haupt ? "font-semibold tabular-nums" : "tabular-nums text-muted-foreground"}>
+                    {t.datum ? datumKurz(t.datum) : t.datumText || ""}
+                  </p>
+                  <div className="min-w-0">
+                    <p className={t.haupt ? "font-semibold" : "font-medium"}>{t.label}</p>
+                    <p className="text-sm tabular-nums text-muted-foreground">{[t.uhrzeit, t.ort].filter(Boolean).join(", ")}</p>
+                    {t.zusatz && <p className="text-sm text-muted-foreground">{t.zusatz}</p>}
+                  </div>
                 </li>
               ))}
-            </ul>
-          )}
-        </Abschnitt>
+            </ol>
+          </Abschnitt>
 
-        <Abschnitt titel="Änderungen">
-          {aenderungen.length === 0 ? (
-            <p className="text-[15px] text-muted-foreground">Seit der Anmeldung wurde nichts geändert.</p>
-          ) : (
-            <ul className="space-y-2 text-[15px]">
+          {(v.technische_details.trim() || v.anmerkungen.trim()) && (
+            <Abschnitt titel="Hinweise der Lehrkraft">
+              <div className="space-y-6">
+                {v.technische_details.trim() && (
+                  <div>
+                    <h3 className="mb-1 text-sm font-medium text-muted-foreground">Technische Details</h3>
+                    <p className="max-w-[65ch] whitespace-pre-wrap text-[15px] leading-relaxed">{v.technische_details}</p>
+                  </div>
+                )}
+                {v.anmerkungen.trim() && (
+                  <div>
+                    <h3 className="mb-1 text-sm font-medium text-muted-foreground">Anmerkungen</h3>
+                    <p className="max-w-[65ch] whitespace-pre-wrap text-[15px] leading-relaxed">{v.anmerkungen}</p>
+                  </div>
+                )}
+              </div>
+            </Abschnitt>
+          )}
+        </div>
+
+        <aside className="space-y-12" aria-label="Unterlagen und Verlauf">
+          <Abschnitt titel="Unterlagen" hinweis={dateien.length > 0 ? "Ein Klick öffnet die Vorschau." : undefined}>
+            {dateien.length === 0 ? (
+              <p className="text-[15px] text-muted-foreground">Die Lehrkraft hat noch nichts hochgeladen.</p>
+            ) : (
+              <Unterlagen anmeldungId={anmeldung.id} dateien={dateien} />
+            )}
+          </Abschnitt>
+
+          <Abschnitt titel="Verlauf">
+            <ul className="space-y-3 text-[15px]">
               {aenderungen.map((a) => (
-                <li key={a.zeit} className="flex flex-wrap gap-x-4">
-                  <span className="tabular-nums text-muted-foreground">{datumZeit(a.zeit)}</span>
-                  <span>{a.felder.map(feldBezeichnung).join(", ")}</span>
+                <li key={a.zeit}>
+                  <p className="text-sm tabular-nums text-muted-foreground">{datumZeit(a.zeit)}</p>
+                  <p>Geändert: {a.felder.map(feldBezeichnung).join(", ")}</p>
                 </li>
               ))}
+              <li>
+                <p className="text-sm tabular-nums text-muted-foreground">{datumZeit(anmeldung.erstelltAm)}</p>
+                <p>Angemeldet von {v.lehrkraft}</p>
+              </li>
             </ul>
-          )}
-        </Abschnitt>
-
-        {darf(konto.rolle, "anmeldungen.loeschen") && (
-          <div className="mt-14 border-t border-border pt-6">
-            <AnmeldungLoeschen id={anmeldung.id} titel={v.titel} />
-          </div>
-        )}
+          </Abschnitt>
+        </aside>
       </div>
+
+      {darf(konto.rolle, "anmeldungen.loeschen") && (
+        <div className="mt-16 border-t border-border pt-6">
+          <AnmeldungLoeschen id={anmeldung.id} titel={v.titel} />
+        </div>
+      )}
     </div>
   );
 }

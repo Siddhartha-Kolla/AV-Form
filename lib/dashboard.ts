@@ -109,16 +109,15 @@ export function artBezeichnung(id: string): string {
 /** Punkte, die nur sagen, dass nichts gebraucht wird. Sie zählen nicht als Technik. */
 const KEINE_TECHNIK = new Set(["ton_kein", "licht_raumlicht"]);
 
-/** Alle gewählten Punkte, nach Gruppen, mit Anzahl bei Mikrofonen und Headsets. */
-export function technikGruppen(v: FormValues): { gruppe: string; punkte: string[] }[] {
-  const ergebnis: { gruppe: string; punkte: string[] }[] = [];
+export type TechnikPunkt = { text: string; anzahl: string | null };
+
+/** Alle gewählten Punkte, nach Gruppen. Bei Mikrofonen und Headsets steht die Anzahl getrennt. */
+export function technikGruppen(v: FormValues): { gruppe: string; punkte: TechnikPunkt[] }[] {
+  const ergebnis: { gruppe: string; punkte: TechnikPunkt[] }[] = [];
   for (const g of TECH_GROUPS) {
     const punkte = g.items
       .filter((item) => v.tech[item.id])
-      .map((item) => {
-        const anzahl = item.count ? v[item.count].trim() : "";
-        return anzahl ? `${item.label} (${anzahl})` : item.label;
-      });
+      .map((item): TechnikPunkt => ({ text: item.label, anzahl: item.count ? v[item.count].trim() || null : null }));
     if (punkte.length > 0) ergebnis.push({ gruppe: g.label, punkte });
   }
   return ergebnis;
@@ -262,4 +261,60 @@ export function gruppiere(liste: Listeneintrag[], zeit: ZeitAuswahl, heuteIso: s
     else gruppen.push({ schluessel, titel, eintraege: [e] });
   }
   return gruppen;
+}
+
+/* Termine ------------------------------------------------------------------- */
+
+export type TerminZeile = {
+  id: string;
+  label: string;
+  /** Ein echtes Datum, wenn sich der Eintrag einordnen lässt, sonst null (freier Text). */
+  datum: string | null;
+  datumText: string;
+  uhrzeit: string;
+  ort: string;
+  zusatz: string;
+  haupt: boolean;
+};
+
+/**
+ * Alle Termine rund um die Veranstaltung in zeitlicher Reihenfolge. Die Veranstaltung selbst kommt aus
+ * den Hauptfeldern. Einträge mit freiem Text statt Datum (zum Beispiel mehrere Proben) stehen am Anfang.
+ */
+export function terminListe(v: FormValues): TerminZeile[] {
+  const zeilen: TerminZeile[] = [];
+  for (const t of TERMINE) {
+    const x = v.termine[t.id];
+    if (t.id === "veranstaltung") {
+      zeilen.push({
+        id: t.id,
+        label: t.label,
+        datum: v.datum,
+        datumText: v.datum,
+        uhrzeit: `${v.beginn} bis ${v.ende} Uhr`,
+        ort: v.ort,
+        zusatz: [x.datum && !/^\d{4}-/.test(x.datum) ? x.datum : "", x.uhrzeit, x.ort].filter(Boolean).join(", "),
+        haupt: true,
+      });
+      continue;
+    }
+    if (!x.datum && !x.uhrzeit && !x.ort) continue;
+    const echt = /^\d{4}-\d{2}-\d{2}$/.test(x.datum);
+    zeilen.push({
+      id: t.id,
+      label: t.label,
+      datum: echt ? x.datum : null,
+      datumText: x.datum,
+      uhrzeit: /^\d{2}:\d{2}$/.test(x.uhrzeit) ? `${x.uhrzeit} Uhr` : x.uhrzeit,
+      ort: x.ort,
+      zusatz: "",
+      haupt: false,
+    });
+  }
+  return zeilen.sort((a, b) => {
+    if (a.datum === null && b.datum !== null) return -1;
+    if (a.datum !== null && b.datum === null) return 1;
+    if (a.datum === null || b.datum === null) return 0;
+    return a.datum.localeCompare(b.datum) || a.uhrzeit.localeCompare(b.uhrzeit);
+  });
 }

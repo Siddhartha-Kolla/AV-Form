@@ -76,6 +76,19 @@ describe("Zugriff des Teams", () => {
     assert.equal(eintrag.details.anmeldung, "Sommerkonzert");
   });
 
+  it("zählt die Vorschau getrennt vom Download und nur einmal in 30 Minuten", () => {
+    const a = neueAnmeldung();
+    const info = dat.speichereDatei(a.id, "Vorschau.pdf", Buffer.from("Inhalt"));
+    const vorher = prot.listeProtokoll({ ereignisse: ["datei.angesehen"], limit: 200 }).zeilen.length;
+    assert.ok(team.ladeDateiFuerTeam(mitglied, a.id, info.id, kontext, "vorschau"));
+    assert.ok(team.ladeDateiFuerTeam(mitglied, a.id, info.id, kontext, "vorschau"));
+    assert.equal(prot.listeProtokoll({ ereignisse: ["datei.angesehen"], limit: 200 }).zeilen.length, vorher + 1);
+    const downloads = prot.listeProtokoll({ ereignisse: ["datei.heruntergeladen"], limit: 200 }).zeilen.length;
+    team.ladeDateiFuerTeam(mitglied, a.id, info.id, kontext);
+    team.ladeDateiFuerTeam(mitglied, a.id, info.id, kontext);
+    assert.equal(prot.listeProtokoll({ ereignisse: ["datei.heruntergeladen"], limit: 200 }).zeilen.length, downloads + 2);
+  });
+
   it("lässt nur den Superuser löschen und protokolliert es mit dem Titel", () => {
     const a = neueAnmeldung();
     const info = dat.speichereDatei(a.id, "Weg.pdf", Buffer.from("x"));

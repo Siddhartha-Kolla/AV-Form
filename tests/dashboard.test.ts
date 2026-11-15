@@ -11,7 +11,9 @@ import {
   juengsteAenderung,
   knappAngemeldet,
   nachMonat,
+  technikGruppen,
   technikKurz,
+  terminListe,
   unterlagenFehlen,
   zusammenfassung,
   type Listeneintrag,
@@ -115,6 +117,40 @@ describe("Verkleinern für den Browser", () => {
     assert.ok(!text.includes("geheim@"));
     assert.ok(!text.includes("intern"));
     assert.equal(klein.values.titel, "T");
+  });
+});
+
+describe("Termine und Technik im Detail", () => {
+  it("ordnet Termine zeitlich und nimmt die Veranstaltung aus den Hauptfeldern", () => {
+    const v = {
+      ...emptyValues(),
+      datum: "2026-12-04",
+      beginn: "18:30",
+      ende: "21:00",
+      ort: "Aula",
+      termine: {
+        ...emptyValues().termine,
+        probe: { datum: "10. und 12.11.", uhrzeit: "15 Uhr", ort: "Aula" },
+        aufbau: { datum: "2026-12-04", uhrzeit: "12:00", ort: "Aula" },
+        generalprobe: { datum: "2026-12-03", uhrzeit: "15:00", ort: "" },
+        abbau: { datum: "2026-12-05", uhrzeit: "08:00", ort: "Aula" },
+      },
+    };
+    const liste = terminListe(v);
+    assert.deepEqual(liste.map((t) => t.label), ["Probe(n)", "Generalprobe", "Aufbau", "Veranstaltung", "Abbau"]);
+    assert.equal(liste[0].datum, null);
+    assert.equal(liste[0].datumText, "10. und 12.11.");
+    assert.equal(liste[3].haupt, true);
+    assert.equal(liste[3].uhrzeit, "18:30 bis 21:00 Uhr");
+    assert.equal(terminListe(emptyValues()).length, 1, "ohne weitere Termine bleibt nur die Veranstaltung");
+  });
+
+  it("trennt Anzahl und Bezeichnung bei der Technik", () => {
+    const v = { ...emptyValues(), tech: { mikrofone: true, headsets: true, licht_buehne: true }, mikrofone_anzahl: "8", headsets_anzahl: "" };
+    assert.deepEqual(technikGruppen(v), [
+      { gruppe: "Ton", punkte: [{ text: "Mikrofone", anzahl: "8" }, { text: "Headsets", anzahl: null }] },
+      { gruppe: "Licht", punkte: [{ text: "Bühnenlicht", anzahl: null }] },
+    ]);
   });
 });
 

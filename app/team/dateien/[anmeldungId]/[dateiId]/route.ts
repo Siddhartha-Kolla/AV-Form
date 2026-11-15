@@ -13,9 +13,13 @@ const TYPEN: Record<string, string> = {
   wav: "audio/wav",
 };
 
-/** Lädt eine Datei herunter. Nur für angemeldete Teammitglieder, immer als Download, nie als Seite. */
+/**
+ * Liefert eine Datei an angemeldete Teammitglieder, immer mit "attachment", nie als Seite.
+ * Die Vorschau holt dieselbe Datei per fetch und stellt sie selbst dar (mit "?vorschau=1",
+ * damit das Protokoll das Ansehen vom Herunterladen unterscheiden kann).
+ */
 export async function GET(
-  _anfrage: Request,
+  anfrage: Request,
   { params }: { params: Promise<{ anmeldungId: string; dateiId: string }> },
 ) {
   const sitzung = await aktuelleSitzung();
@@ -24,7 +28,13 @@ export async function GET(
 
   const { anmeldungId, dateiId } = await params;
   try {
-    const datei = ladeDateiFuerTeam(sitzung.konto, anmeldungId, dateiId, await anfrageKontext());
+    const datei = ladeDateiFuerTeam(
+      sitzung.konto,
+      anmeldungId,
+      dateiId,
+      await anfrageKontext(),
+      new URL(anfrage.url).searchParams.get("vorschau") === "1" ? "vorschau" : "download",
+    );
     if (!datei) return new Response("Datei nicht gefunden.", { status: 404 });
 
     const endung = datei.info.name.split(".").pop()?.toLowerCase() ?? "";

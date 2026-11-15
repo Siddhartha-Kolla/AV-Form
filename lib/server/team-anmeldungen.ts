@@ -52,20 +52,33 @@ export function oeffneFuerTeam(
   return { anmeldung, dateien: listeDateien(id), aenderungen: alle?.aenderungen ?? [] };
 }
 
-export function ladeDateiFuerTeam(akteur: Konto, anmeldungId: string, dateiId: string, kontext: Kontext) {
+/**
+ * Liefert eine Datei. Ein Download wird immer protokolliert. Die Vorschau höchstens einmal in
+ * 30 Minuten je Person und Datei, weil beim Blättern durch Unterlagen sonst jede Datei mehrfach zählt.
+ */
+export function ladeDateiFuerTeam(
+  akteur: Konto,
+  anmeldungId: string,
+  dateiId: string,
+  kontext: Kontext,
+  zweck: "download" | "vorschau" = "download",
+) {
   verlange(akteur, "anmeldungen.lesen");
   const datei = leseDatei(anmeldungId, dateiId);
   if (!datei) return null;
-  const anmeldung = findeNachId(anmeldungId);
-  protokolliere(
-    {
-      ereignis: "datei.heruntergeladen",
-      akteur: { id: akteur.id, name: akteur.anzeigename },
-      ziel: { typ: "datei", id: dateiId, name: datei.info.name },
-      details: { anmeldung: anmeldung?.values.titel ?? anmeldungId },
-    },
-    kontext,
-  );
+  const ereignis = zweck === "vorschau" ? "datei.angesehen" : "datei.heruntergeladen";
+  if (zweck === "download" || !kuerzlichProtokolliert(akteur.id, ereignis, dateiId, 30)) {
+    const anmeldung = findeNachId(anmeldungId);
+    protokolliere(
+      {
+        ereignis,
+        akteur: { id: akteur.id, name: akteur.anzeigename },
+        ziel: { typ: "datei", id: dateiId, name: datei.info.name },
+        details: { anmeldung: anmeldung?.values.titel ?? anmeldungId },
+      },
+      kontext,
+    );
+  }
   return datei;
 }
 
