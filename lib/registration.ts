@@ -233,10 +233,11 @@ export function validate(v: FormValues, heute: Date | null): Fehler {
     }
   }
 
-  if (!fehler.datum && heute) {
+  if (!fehler.datum && !parseDatum(v.datum)) {
+    fehler.datum = "Bitte ein gültiges Datum angeben.";
+  } else if (!fehler.datum && heute) {
     const tage = tageBis(v.datum, heute);
-    if (tage === null) fehler.datum = "Bitte das Datum im Format TT.MM.JJJJ angeben.";
-    else if (tage < 0) fehler.datum = "Dieses Datum liegt in der Vergangenheit.";
+    if (tage !== null && tage < 0) fehler.datum = "Dieses Datum liegt in der Vergangenheit.";
   }
 
   if (!fehler.beginn && !fehler.ende && v.ende <= v.beginn) {
@@ -256,4 +257,51 @@ export function validate(v: FormValues, heute: Date | null): Fehler {
   }
 
   return fehler;
+}
+
+/* Eingaben von außen ------------------------------------------------------- */
+
+const kurz = (max: number) => z.string().max(max).transform((t) => t.trim());
+const terminSchema = z.object({ datum: kurz(60), uhrzeit: kurz(60), ort: kurz(200) });
+const BEKANNTE_TECHNIK = new Set(TECH_GROUPS.flatMap((g) => g.items.map((i) => i.id)));
+const ART_IDS = ARTEN.map((a) => a.id) as [ArtId, ...ArtId[]];
+
+const formularSchema = z.object({
+  titel: kurz(200),
+  lehrkraft: kurz(120),
+  email: kurz(200),
+  datum: kurz(10),
+  beginn: kurz(5),
+  ende: kurz(5),
+  ort: kurz(200),
+  arten: z.array(z.enum(ART_IDS)).max(ART_IDS.length),
+  art_sonstiges: kurz(200),
+  tech: z.record(z.string(), z.boolean()),
+  mikrofone_anzahl: kurz(4),
+  headsets_anzahl: kurz(4),
+  betreuung_ton: z.boolean(),
+  betreuung_licht: z.boolean(),
+  technische_details: kurz(5000),
+  termine: z.object({
+    probe: terminSchema,
+    generalprobe: terminSchema,
+    aufbau: terminSchema,
+    veranstaltung: terminSchema,
+    abbau: terminSchema,
+  }),
+  anmerkungen: kurz(5000),
+});
+
+/**
+ * Macht aus beliebigen Daten (zum Beispiel aus dem Browser) eine saubere Anmeldung:
+ * Längen begrenzt, Texte gekürzt, nur bekannte Arten und Technikpunkte, jede Art höchstens einmal.
+ * Alles andere wird abgelehnt.
+ */
+export function parseFormValues(roh: unknown): { ok: true; values: FormValues } | { ok: false; meldung: string } {
+  const ergebnis = formularSchema.safeParse(roh);
+  if (!ergebnis.success) return { ok: false, meldung: "Die Angaben haben ein ungültiges Format." };
+  const d = ergebnis.data;
+  const tech: Record<string, boolean> = {};
+  for (const [key, an] of Object.entries(d.tech)) if (an && BEKANNTE_TECHNIK.has(key)) tech[key] = true;
+  return { ok: true, values: { ...d, arten: [...new Set(d.arten)], tech } };
 }

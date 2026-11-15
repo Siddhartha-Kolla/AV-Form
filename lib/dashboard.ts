@@ -7,6 +7,7 @@ import {
   type FormValues,
 } from "./registration.ts";
 import { monatTitel, tageZwischen } from "./format.ts";
+import type { StatusId } from "./entscheidung.ts";
 
 /*
   Reine Hilfsfunktionen für die Übersicht und die Detailseite des Teams.
@@ -35,6 +36,7 @@ export type ListenWerte = Pick<
 export type Listeneintrag = {
   id: string;
   values: ListenWerte;
+  status: StatusId;
   erstelltAm: string;
   dateienAnzahl: number;
   aenderungen: { zeit: string; felder: string[] }[];
@@ -44,6 +46,7 @@ export type Listeneintrag = {
 export function alsListeneintrag(a: {
   id: string;
   values: FormValues;
+  status: StatusId;
   erstelltAm: string;
   dateien: unknown[];
   aenderungen: { zeit: string; felder: string[] }[];
@@ -65,9 +68,11 @@ export function alsListeneintrag(a: {
       betreuung_ton: v.betreuung_ton,
       betreuung_licht: v.betreuung_licht,
     },
+    status: a.status,
     erstelltAm: a.erstelltAm,
     dateienAnzahl: a.dateien.length,
-    aenderungen: a.aenderungen,
+    // Nur Zeit und Feldnamen, nie Namen oder Notizen der Bearbeiter
+    aenderungen: a.aenderungen.map(({ zeit, felder }) => ({ zeit, felder })),
   };
 }
 
@@ -93,6 +98,8 @@ const FELDER: Record<string, string> = {
 };
 
 export function feldBezeichnung(key: string): string {
+  if (key === "datei+") return "Datei hinzugefügt";
+  if (key === "datei-") return "Datei entfernt";
   if (key.startsWith("termine.")) {
     const termin = TERMINE.find((t) => t.id === key.slice("termine.".length));
     return termin ? `Termin ${termin.label}` : "Termine";
@@ -180,7 +187,14 @@ export function juengsteAenderung(e: Listeneintrag, heuteIso: string, tage = 14)
 
 /* Filtern, sortieren, gruppieren -------------------------------------------- */
 
-export type Filter = { zeit: ZeitAuswahl; art?: ArtId | ""; suche?: string };
+/** "zeitplan" blendet Abgelehntes aus, "alle" zeigt wirklich alles. */
+export type StatusAuswahl = "zeitplan" | StatusId | "alle";
+
+export function istStatusAuswahl(wert: string): wert is StatusAuswahl {
+  return wert === "zeitplan" || wert === "alle" || wert === "neu" || wert === "angenommen" || wert === "rueckfrage" || wert === "abgelehnt";
+}
+
+export type Filter = { zeit: ZeitAuswahl; art?: ArtId | ""; suche?: string; status?: StatusAuswahl };
 
 export function istArt(wert: string): wert is ArtId {
   return ARTEN.some((a) => a.id === wert);
@@ -193,6 +207,8 @@ export function filtere(liste: Listeneintrag[], filter: Filter, heuteIso: string
     if (filter.zeit === "anstehend" && v.datum < heuteIso) return false;
     if (filter.zeit === "vergangen" && v.datum >= heuteIso) return false;
     if (filter.art && !v.arten.includes(filter.art)) return false;
+    const status = filter.status ?? "zeitplan";
+    if (status === "zeitplan" ? e.status === "abgelehnt" : status !== "alle" && e.status !== status) return false;
     if (suche) {
       const heuhaufen = [v.titel, v.lehrkraft, v.ort, v.art_sonstiges].join(" ").toLowerCase();
       if (!suche.split(/\s+/).every((wort) => heuhaufen.includes(wort))) return false;
@@ -219,9 +235,12 @@ export function nachMonat(liste: Listeneintrag[]): { monat: string; eintraege: L
 }
 
 export function zusammenfassung(liste: Listeneintrag[], heuteIso: string) {
-  const anstehend = liste.filter((e) => e.values.datum >= heuteIso);
+  // Abgelehntes steht nicht im Zeitplan und zählt nirgends mit.
+  const anstehend = liste.filter((e) => e.values.datum >= heuteIso && e.status !== "abgelehnt");
   return {
     anstehend: anstehend.length,
+    zuPruefen: anstehend.filter((e) => e.status === "neu").length,
+    rueckfragen: anstehend.filter((e) => e.status === "rueckfrage").length,
     knapp: anstehend.filter((e) => knappAngemeldet(e)).length,
     geaendert: anstehend.filter((e) => juengsteAenderung(e, heuteIso, 7)).length,
     ohneUnterlagen: anstehend.filter((e) => e.dateienAnzahl === 0).length,
@@ -317,4 +336,25 @@ export function terminListe(v: FormValues): TerminZeile[] {
     if (a.datum === null || b.datum === null) return 0;
     return a.datum.localeCompare(b.datum) || a.uhrzeit.localeCompare(b.uhrzeit);
   });
+}
+
+/* Änderungen vergleichen ------------------------------------------------------ */
+
+const FELDER_MIT_UNTERPUNKTEN = ["termine"] as const;
+
+/** Namen der Formularfelder, die sich unterscheiden. Termine werden pro Zeile genannt. */
+export function geaenderteFelder(alt: FormValues, neu: FormValues): string[] {
+  const unterschied: string[] = [];
+  for (const key of Object.keys(neu) as (keyof FormValues)[]) {
+    if ((FELDER_MIT_UNTERPUNKTEN as readonly string[]).includes(key)) {
+      const a = alt[key] as Record<string, unknown>;
+      const n = neu[key] as Record<string, unknown>;
+      for (const unter of Object.keys(n)) {
+        if (JSON.stringify(a?.[unter]) !== JSON.stringify(n[unter])) unterschied.push(`${key}.${unter}`);
+      }
+    } else if (JSON.stringify(alt[key]) !== JSON.stringify(neu[key])) {
+      unterschied.push(key);
+    }
+  }
+  return unterschied;
 }

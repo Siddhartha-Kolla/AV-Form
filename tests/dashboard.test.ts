@@ -26,6 +26,7 @@ const HEUTE = "2026-11-15";
 function eintrag(id: string, teil: Partial<FormValues>, extra: Partial<Listeneintrag> = {}): Listeneintrag {
   return {
     id,
+    status: "neu",
     values: { ...emptyValues(), titel: id, lehrkraft: "Frau Test", ort: "Aula", beginn: "18:00", ende: "20:00", ...teil },
     erstelltAm: "2026-10-01T10:00:00.000Z",
     dateienAnzahl: 0,
@@ -106,16 +107,20 @@ describe("Verkleinern für den Browser", () => {
   it("gibt keine privaten Felder an die Liste weiter", () => {
     const voll = {
       id: "x",
+      status: "neu" as const,
       values: { ...emptyValues(), titel: "T", email: "geheim@schule.example", anmerkungen: "intern", technische_details: "intern" },
       erstelltAm: "2026-10-01T10:00:00.000Z",
       dateien: [1, 2],
-      aenderungen: [],
+      aenderungen: [{ zeit: "2026-10-02T10:00:00.000Z", felder: ["ort"], von: "Max Muster", notiz: "per Mail", dateienHinzu: ["a.pdf"], dateienWeg: [] }],
     };
     const klein = alsListeneintrag(voll);
     assert.equal(klein.dateienAnzahl, 2);
     const text = JSON.stringify(klein);
     assert.ok(!text.includes("geheim@"));
     assert.ok(!text.includes("intern"));
+    assert.ok(!text.includes("Max Muster"), "Namen der Bearbeiter bleiben auf dem Server");
+    assert.ok(!text.includes("per Mail"));
+    assert.deepEqual(klein.aenderungen, [{ zeit: "2026-10-02T10:00:00.000Z", felder: ["ort"] }]);
     assert.equal(klein.values.titel, "T");
   });
 });
@@ -193,7 +198,7 @@ describe("Status", () => {
       ],
       HEUTE,
     );
-    assert.deepEqual(s, { anstehend: 1, knapp: 1, geaendert: 0, ohneUnterlagen: 1 });
+    assert.deepEqual(s, { anstehend: 1, zuPruefen: 1, rueckfragen: 0, knapp: 1, geaendert: 0, ohneUnterlagen: 1 });
   });
 });
 
@@ -211,5 +216,31 @@ describe("Beschriftungen und Datum", () => {
     assert.equal(inTagen("2026-12-04", HEUTE), "in 19 Tagen");
     assert.equal(inTagen("2026-11-12", HEUTE), "vor 3 Tagen");
     assert.match(heuteBerlin(), /^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("Status in der Übersicht", () => {
+  const mitStatus = [
+    eintrag("a-neu", { datum: "2026-11-20" }),
+    eintrag("a-ok", { datum: "2026-11-21" }, { status: "angenommen" }),
+    eintrag("a-frage", { datum: "2026-11-22" }, { status: "rueckfrage" }),
+    eintrag("a-weg", { datum: "2026-11-23" }, { status: "abgelehnt" }),
+  ];
+
+  it("zeigt standardmäßig nur, was im Zeitplan steht", () => {
+    assert.deepEqual(filtere(mitStatus, { zeit: "anstehend" }, HEUTE).map((e) => e.id), ["a-neu", "a-ok", "a-frage"]);
+  });
+
+  it("filtert nach einzelnen Status und findet Abgelehntes wieder", () => {
+    assert.deepEqual(filtere(mitStatus, { zeit: "alle", status: "abgelehnt" }, HEUTE).map((e) => e.id), ["a-weg"]);
+    assert.deepEqual(filtere(mitStatus, { zeit: "alle", status: "rueckfrage" }, HEUTE).map((e) => e.id), ["a-frage"]);
+    assert.equal(filtere(mitStatus, { zeit: "alle", status: "alle" }, HEUTE).length, 4);
+  });
+
+  it("zählt Abgelehntes nicht mit und nennt offene Entscheidungen", () => {
+    const z = zusammenfassung(mitStatus, HEUTE);
+    assert.equal(z.anstehend, 3);
+    assert.equal(z.zuPruefen, 1);
+    assert.equal(z.rueckfragen, 1);
   });
 });

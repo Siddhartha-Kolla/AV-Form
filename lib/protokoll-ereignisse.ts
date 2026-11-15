@@ -18,6 +18,8 @@ export const EREIGNISSE = {
   "cli.superuser_angelegt": { text: "Superuser über die Kommandozeile angelegt", gruppe: "konten" },
   "cli.passwort_zurueckgesetzt": { text: "Passwort über die Kommandozeile zurückgesetzt", gruppe: "konten" },
   "anmeldung.angesehen": { text: "Anmeldung angesehen", gruppe: "daten" },
+  "anmeldung.bearbeitet": { text: "Anmeldung bearbeitet", gruppe: "daten" },
+  "anmeldung.entschieden": { text: "Über Anmeldung entschieden", gruppe: "daten" },
   "anmeldung.geloescht": { text: "Anmeldung gelöscht", gruppe: "daten" },
   "datei.angesehen": { text: "Datei in der Vorschau angesehen", gruppe: "daten" },
   "datei.heruntergeladen": { text: "Datei heruntergeladen", gruppe: "daten" },

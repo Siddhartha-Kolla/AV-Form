@@ -8,6 +8,8 @@
 
 export const BERECHTIGUNGEN = [
   "anmeldungen.lesen",
+  "anmeldungen.bearbeiten",
+  "anmeldungen.entscheiden",
   "anmeldungen.loeschen",
   "team.verwalten",
   "protokoll.lesen",
@@ -23,8 +25,9 @@ export const ROLLEN = {
   },
   mitglied: {
     name: "Mitglied",
-    beschreibung: "Sieht die Anmeldungen und lädt Unterlagen herunter.",
-    berechtigungen: ["anmeldungen.lesen"] as Berechtigung[],
+    beschreibung:
+      "Sieht Anmeldungen, bearbeitet sie, verwaltet deren Unterlagen und entscheidet über Annahme, Rückfrage und Ablehnung. Löschen darf nur der Superuser.",
+    berechtigungen: ["anmeldungen.lesen", "anmeldungen.bearbeiten", "anmeldungen.entscheiden"] as Berechtigung[],
   },
 } as const;
 

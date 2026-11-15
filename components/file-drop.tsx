@@ -14,9 +14,12 @@ import {
 export function FileDrop({
   files,
   onChange,
+  maximal = MAX_DATEIEN,
 }: {
   files: File[];
   onChange: (files: File[]) => void;
+  /** Wie viele Dateien insgesamt noch dazukommen dürfen. */
+  maximal?: number;
 }) {
   const [drag, setDrag] = useState(false);
   const [abgelehnt, setAbgelehnt] = useState<string[]>([]);
@@ -29,7 +32,7 @@ export function FileDrop({
       const problem = pruefeDatei(f);
       if (problem) probleme.push(`${f.name}: ${problem}`);
       else if (next.some((x) => x.name === f.name && x.size === f.size)) continue;
-      else if (next.length >= MAX_DATEIEN) probleme.push(`${f.name}: Es sind höchstens ${MAX_DATEIEN} Dateien möglich.`);
+      else if (next.length >= maximal) probleme.push(`${f.name}: Es sind höchstens ${MAX_DATEIEN} Dateien insgesamt möglich.`);
       else next.push(f);
     }
     setAbgelehnt(probleme);

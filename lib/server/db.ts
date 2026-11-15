@@ -100,6 +100,26 @@ const MIGRATIONEN: string[] = [
   CREATE INDEX protokoll_ereignis ON protokoll (ereignis, zeit);
   CREATE INDEX protokoll_akteur ON protokoll (akteur_id, zeit);
   `,
+  // Version 3: Wer hat eine Anmeldung geändert, mit welcher Notiz und welchen Dateien
+  `
+  ALTER TABLE aenderungen ADD COLUMN akteur_id TEXT;
+  ALTER TABLE aenderungen ADD COLUMN daten BLOB;
+  `,
+  // Version 4: Entscheidung des Teams (annehmen, Rückfrage, ablehnen) samt Verlauf mit Nachricht
+  `
+  ALTER TABLE anmeldungen ADD COLUMN status TEXT NOT NULL DEFAULT 'neu'
+    CHECK (status IN ('neu', 'angenommen', 'rueckfrage', 'abgelehnt'));
+
+  CREATE TABLE entscheidungen (
+    id           INTEGER PRIMARY KEY,
+    anmeldung_id TEXT NOT NULL REFERENCES anmeldungen (id) ON DELETE CASCADE,
+    zeit         TEXT NOT NULL,
+    status       TEXT NOT NULL,
+    akteur_id    TEXT,
+    daten        BLOB NOT NULL
+  ) STRICT;
+  CREATE INDEX entscheidungen_anmeldung ON entscheidungen (anmeldung_id);
+  `,
 ];
 
 const global = globalThis as unknown as { __technikDb?: Database.Database };

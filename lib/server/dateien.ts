@@ -21,7 +21,12 @@ function sauberer(name: string): string {
   return nurName.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 200);
 }
 
-export function speichereDatei(anmeldungId: string, name: string, inhalt: Buffer): DateiInfo {
+export function speichereDatei(
+  anmeldungId: string,
+  name: string,
+  inhalt: Buffer,
+  optionen: { anzahlSchonGeprueft?: boolean } = {},
+): DateiInfo {
   const sauber = sauberer(name);
   const endung = sauber.split(".").pop()?.toLowerCase() ?? "";
   if (!sauber || !ERLAUBTE_ENDUNGEN.includes(endung)) {
@@ -31,10 +36,12 @@ export function speichereDatei(anmeldungId: string, name: string, inhalt: Buffer
   if (inhalt.length > MAX_DATEI_MB * 1024 * 1024) {
     throw new Error(`Die Datei ist größer als ${MAX_DATEI_MB} MB.`);
   }
-  const vorhanden = db()
-    .prepare("SELECT COUNT(*) AS n FROM dateien WHERE anmeldung_id = ?")
-    .get(anmeldungId) as { n: number };
-  if (vorhanden.n >= MAX_DATEIEN) throw new Error(`Es sind höchstens ${MAX_DATEIEN} Dateien möglich.`);
+  if (!optionen.anzahlSchonGeprueft) {
+    const vorhanden = db()
+      .prepare("SELECT COUNT(*) AS n FROM dateien WHERE anmeldung_id = ?")
+      .get(anmeldungId) as { n: number };
+    if (vorhanden.n >= MAX_DATEIEN) throw new Error(`Es sind höchstens ${MAX_DATEIEN} Dateien möglich.`);
+  }
 
   const id = neueId();
   const ziel = pfad(id);

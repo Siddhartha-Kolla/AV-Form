@@ -1,5 +1,8 @@
 import "server-only";
+import { geaenderteFelder } from "../dashboard.ts";
+import { istStatus, type Entscheidung, type StatusId } from "../entscheidung.ts";
 import type { FormValues } from "../registration.ts";
+import { FachFehler } from "./auth/fehler.ts";
 import { aufbewahrungMonate } from "./config.ts";
 import {
   emailHash,
@@ -18,11 +21,20 @@ export type Anmeldung = {
   id: string;
   values: FormValues;
   revision: number;
+  status: StatusId;
   erstelltAm: string;
   geaendertAm: string;
 };
 
-export type Aenderung = { zeit: string; felder: string[] };
+export type Aenderung = {
+  zeit: string;
+  felder: string[];
+  /** Wer die Änderung eingetragen hat. Leer bei Änderungen der Lehrkraft und bei älteren Einträgen. */
+  von: string | null;
+  notiz: string | null;
+  dateienHinzu: string[];
+  dateienWeg: string[];
+};
 
 export type AnmeldungMitZusatz = Anmeldung & { dateien: DateiInfo[]; aenderungen: Aenderung[] };
 
@@ -30,11 +42,12 @@ type Zeile = {
   id: string;
   daten: Buffer;
   revision: number;
+  status: string;
   erstellt_am: string;
   geaendert_am: string;
 };
 
-const SPALTEN = "id, daten, revision, erstellt_am, geaendert_am";
+const SPALTEN = "id, daten, revision, status, erstellt_am, geaendert_am";
 
 function jetzt(): string {
   return new Date().toISOString();
@@ -49,6 +62,7 @@ function zuAnmeldung(z: Zeile): Anmeldung {
     id: z.id,
     values: inhalt.values,
     revision: z.revision,
+    status: istStatus(z.status) ? z.status : "neu",
     erstelltAm: z.erstellt_am,
     geaendertAm: z.geaendert_am,
   };
@@ -87,43 +101,161 @@ export function findeNachId(id: string): Anmeldung | null {
   return zeile ? zuAnmeldung(zeile) : null;
 }
 
-const FELDER_MIT_UNTERPUNKTEN = ["termine"] as const;
+export type AenderungsOptionen = {
+  akteur?: { id: string; name: string } | null;
+  /** Freier Vermerk, zum Beispiel "per E-Mail von Frau Beispiel gemeldet". */
+  notiz?: string;
+  /** Stand, auf dem die Bearbeitung beruht. Hat sich die Anmeldung inzwischen geändert, wird abgelehnt. */
+  erwarteteRevision?: number;
+  dateienHinzu?: string[];
+  dateienWeg?: string[];
+};
 
-/** Namen der Formularfelder, die sich unterscheiden. Termine werden pro Zeile genannt. */
-export function geaenderteFelder(alt: FormValues, neu: FormValues): string[] {
-  const unterschied: string[] = [];
-  for (const key of Object.keys(neu) as (keyof FormValues)[]) {
-    if ((FELDER_MIT_UNTERPUNKTEN as readonly string[]).includes(key)) {
-      const a = alt[key] as Record<string, unknown>;
-      const n = neu[key] as Record<string, unknown>;
-      for (const unter of Object.keys(n)) {
-        if (JSON.stringify(a?.[unter]) !== JSON.stringify(n[unter])) unterschied.push(`${key}.${unter}`);
-      }
-    } else if (JSON.stringify(alt[key]) !== JSON.stringify(neu[key])) {
-      unterschied.push(key);
-    }
-  }
-  return unterschied;
-}
-
-/** Speichert Änderungen und vermerkt, welche Felder sich geändert haben. */
-export function aktualisiereAnmeldung(id: string, values: FormValues): { geaendert: string[] } | null {
+/**
+ * Speichert Änderungen und vermerkt, was sich geändert hat, von wem und mit welcher Notiz.
+ * Auch eine Änderung nur an den Dateien gilt als Änderung.
+ */
+export function aktualisiereAnmeldung(
+  id: string,
+  values: FormValues,
+  optionen: AenderungsOptionen = {},
+): { geaendert: string[] } | null {
   return db().transaction(() => {
     const zeile = db().prepare(`SELECT ${SPALTEN} FROM anmeldungen WHERE id = ?`).get(id) as Zeile | undefined;
     if (!zeile) return null;
+    if (optionen.erwarteteRevision !== undefined && zeile.revision !== optionen.erwarteteRevision) {
+      throw new FachFehler(
+        "Diese Anmeldung wurde inzwischen geändert. Bitte lade die Seite neu, damit nichts überschrieben wird.",
+      );
+    }
     const felder = geaenderteFelder(zuAnmeldung(zeile).values, values);
+    if (optionen.dateienHinzu?.length) felder.push("datei+");
+    if (optionen.dateienWeg?.length) felder.push("datei-");
     if (felder.length === 0) return { geaendert: [] };
+
     const jetztIso = jetzt();
     db()
       .prepare(
         "UPDATE anmeldungen SET email_hash = ?, datum = ?, daten = ?, revision = revision + 1, geaendert_am = ? WHERE id = ?",
       )
       .run(emailHash(values.email), values.datum, verpacken(id, values), jetztIso, id);
+    const zusatz = {
+      von: optionen.akteur?.name ?? null,
+      notiz: optionen.notiz?.trim() || null,
+      dateienHinzu: optionen.dateienHinzu ?? [],
+      dateienWeg: optionen.dateienWeg ?? [],
+    };
     db()
-      .prepare("INSERT INTO aenderungen (anmeldung_id, zeit, felder) VALUES (?, ?, ?)")
-      .run(id, jetztIso, JSON.stringify(felder));
+      .prepare("INSERT INTO aenderungen (anmeldung_id, zeit, felder, akteur_id, daten) VALUES (?, ?, ?, ?, ?)")
+      .run(
+        id,
+        jetztIso,
+        JSON.stringify(felder),
+        optionen.akteur?.id ?? null,
+        verschluesseln(JSON.stringify(zusatz), `aenderung:${id}:${jetztIso}`),
+      );
+    // Ändert die Lehrkraft selbst etwas, muss das Team noch einmal hinsehen. Abgelehntes bleibt abgelehnt.
+    if (!optionen.akteur && (zeile.status === "angenommen" || zeile.status === "rueckfrage")) {
+      setzeStatus(id, "neu", null, { von: null, nachricht: null }, jetztIso);
+    }
     return { geaendert: felder };
   })();
+}
+
+/* Entscheidungen des Teams --------------------------------------------------- */
+
+export type EntscheidungsEintrag = {
+  zeit: string;
+  status: StatusId;
+  /** Wer entschieden hat. Leer, wenn die Anmeldung durch eine Änderung der Lehrkraft wieder auf "Zu prüfen" gesetzt wurde. */
+  von: string | null;
+  nachricht: string | null;
+};
+
+function setzeStatus(
+  id: string,
+  status: StatusId,
+  akteurId: string | null,
+  zusatz: { von: string | null; nachricht: string | null },
+  zeit: string,
+): void {
+  db().prepare("UPDATE anmeldungen SET status = ? WHERE id = ?").run(status, id);
+  db()
+    .prepare("INSERT INTO entscheidungen (anmeldung_id, zeit, status, akteur_id, daten) VALUES (?, ?, ?, ?, ?)")
+    .run(id, zeit, status, akteurId, verschluesseln(JSON.stringify(zusatz), `entscheidung:${id}:${zeit}`));
+}
+
+/**
+ * Hält die Entscheidung des Teams fest. "erwarteterStatus" ist der Stand, den die Person gesehen hat.
+ * Hat inzwischen jemand anderes entschieden, wird abgelehnt, damit sich zwei Personen nicht überstimmen.
+ */
+export function entscheideAnmeldung(
+  id: string,
+  optionen: {
+    status: Entscheidung;
+    nachricht: string;
+    erwarteterStatus: StatusId;
+    akteur: { id: string; name: string };
+  },
+): { vorher: StatusId } | null {
+  return db().transaction(() => {
+    const zeile = db().prepare("SELECT status FROM anmeldungen WHERE id = ?").get(id) as { status: string } | undefined;
+    if (!zeile) return null;
+    if (zeile.status !== optionen.erwarteterStatus) {
+      throw new FachFehler("Jemand hat inzwischen über diese Anmeldung entschieden. Bitte lade die Seite neu.");
+    }
+    setzeStatus(
+      id,
+      optionen.status,
+      optionen.akteur.id,
+      { von: optionen.akteur.name, nachricht: optionen.nachricht.trim() || null },
+      jetzt(),
+    );
+    return { vorher: zeile.status as StatusId };
+  })();
+}
+
+/** Der Verlauf der Entscheidungen, neueste zuerst. */
+export function listeEntscheidungen(anmeldungId: string): EntscheidungsEintrag[] {
+  const zeilen = db()
+    .prepare("SELECT zeit, status, daten FROM entscheidungen WHERE anmeldung_id = ? ORDER BY zeit DESC, id DESC")
+    .all(anmeldungId) as { zeit: string; status: string; daten: Buffer }[];
+  return zeilen.map((z) => {
+    let zusatz = { von: null as string | null, nachricht: null as string | null };
+    try {
+      zusatz = JSON.parse(entschluesseln(z.daten, `entscheidung:${anmeldungId}:${z.zeit}`).toString("utf8"));
+    } catch {
+      // Ein unlesbarer Zusatz ändert nichts an der Entscheidung selbst.
+    }
+    return { zeit: z.zeit, status: istStatus(z.status) ? z.status : "neu", ...zusatz };
+  });
+}
+
+type AenderungsZeile = {
+  anmeldung_id: string;
+  zeit: string;
+  felder: string;
+  daten: Buffer | null;
+};
+
+function zuAenderung(a: AenderungsZeile): Aenderung {
+  let zusatz = { von: null as string | null, notiz: null as string | null, dateienHinzu: [] as string[], dateienWeg: [] as string[] };
+  if (a.daten) {
+    try {
+      zusatz = JSON.parse(entschluesseln(a.daten, `aenderung:${a.anmeldung_id}:${a.zeit}`).toString("utf8"));
+    } catch {
+      // Ein unlesbarer Zusatz ändert nichts an der Tatsache, dass sich etwas geändert hat.
+    }
+  }
+  return { zeit: a.zeit, felder: JSON.parse(a.felder) as string[], ...zusatz };
+}
+
+/** Der Verlauf einer Anmeldung, neueste Änderung zuerst. */
+export function listeAenderungen(anmeldungId: string): Aenderung[] {
+  const zeilen = db()
+    .prepare("SELECT anmeldung_id, zeit, felder, daten FROM aenderungen WHERE anmeldung_id = ? ORDER BY zeit DESC, id DESC")
+    .all(anmeldungId) as AenderungsZeile[];
+  return zeilen.map(zuAenderung);
 }
 
 /**
@@ -152,12 +284,12 @@ export function neueZugangslinks(email: string, heuteIso: string): { id: string;
 export function listeAnmeldungen(): { anmeldungen: AnmeldungMitZusatz[]; unlesbar: string[] } {
   const zeilen = db().prepare(`SELECT ${SPALTEN} FROM anmeldungen ORDER BY datum, erstellt_am`).all() as Zeile[];
   const aenderungen = db()
-    .prepare("SELECT anmeldung_id, zeit, felder FROM aenderungen ORDER BY zeit DESC, id DESC")
-    .all() as { anmeldung_id: string; zeit: string; felder: string }[];
+    .prepare("SELECT anmeldung_id, zeit, felder, daten FROM aenderungen ORDER BY zeit DESC, id DESC")
+    .all() as AenderungsZeile[];
   const nachId = new Map<string, Aenderung[]>();
   for (const a of aenderungen) {
     const liste = nachId.get(a.anmeldung_id) ?? [];
-    liste.push({ zeit: a.zeit, felder: JSON.parse(a.felder) as string[] });
+    liste.push(zuAenderung(a));
     nachId.set(a.anmeldung_id, liste);
   }
 

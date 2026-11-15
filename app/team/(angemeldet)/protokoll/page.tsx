@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Laden } from "@/components/laden";
+import { feldBezeichnung } from "@/lib/dashboard";
+import { istStatus, STATUS } from "@/lib/entscheidung";
 import { datumZeitMitSekunden, geraetKurz } from "@/lib/format";
 import { GRUPPEN, ereignisseDerGruppe, ereignisText, type GruppeId } from "@/lib/protokoll-ereignisse";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
@@ -19,11 +21,19 @@ const DETAIL_NAMEN: Record<string, string> = {
   sitzungenBeendet: "Sitzungen beendet",
   andereSitzungenBeendet: "Andere Sitzungen beendet",
   hinweis: "Hinweis",
+  dateienHinzu: "Dateien hinzugefügt",
+  dateienEntfernt: "Dateien entfernt",
+  anmeldung: "Anmeldung",
+  datum: "Datum",
+  status: "Entscheidung",
+  vorher: "Vorher",
+  mitNachricht: "Mit Nachricht",
 };
 
 function detailText(z: ProtokollZeile): string {
   const teile = Object.entries(z.details).map(([k, v]) => {
-    const wert = Array.isArray(v) ? v.join(", ") : String(v);
+    if ((k === "status" || k === "vorher") && istStatus(v)) return `${DETAIL_NAMEN[k]}: ${STATUS[v].text}`;
+    const wert = Array.isArray(v) ? (k === "felder" ? v.map((f) => feldBezeichnung(String(f))) : v).join(", ") : String(v);
     return `${DETAIL_NAMEN[k] ?? k}: ${wert}`;
   });
   return teile.join(" · ");

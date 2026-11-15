@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Paperclip, Pencil, TriangleAlert } from "lucide-react";
+import { Check, Clock, MessageCircleQuestion, Paperclip, Pencil, TriangleAlert, X } from "lucide-react";
 import { ARTEN, type ArtId } from "@/lib/registration";
 import {
   betreuungNoetig,
@@ -14,11 +14,29 @@ import {
   technikKurz,
   unterlagenFehlen,
   type Listeneintrag,
+  type StatusAuswahl,
   type ZeitAuswahl,
 } from "@/lib/dashboard";
+import { STATUS, type StatusId } from "@/lib/entscheidung";
 import { datumTeile, inTagen } from "@/lib/format";
 import { SelectField, TextField } from "@/components/fields";
 import { cn } from "@/lib/utils";
+
+const STATUS_OPTIONEN: { id: StatusAuswahl; text: string }[] = [
+  { id: "zeitplan", text: "Im Zeitplan" },
+  { id: "neu", text: STATUS.neu.text },
+  { id: "rueckfrage", text: STATUS.rueckfrage.text },
+  { id: "angenommen", text: STATUS.angenommen.text },
+  { id: "abgelehnt", text: STATUS.abgelehnt.text },
+  { id: "alle", text: "Alle Status" },
+];
+
+const STATUS_ZEILE: Record<StatusId, { symbol: typeof Check; klasse: string }> = {
+  neu: { symbol: Clock, klasse: "font-medium text-note-foreground" },
+  rueckfrage: { symbol: MessageCircleQuestion, klasse: "font-medium text-note-foreground" },
+  angenommen: { symbol: Check, klasse: "text-primary" },
+  abgelehnt: { symbol: X, klasse: "text-muted-foreground" },
+};
 
 const ZEITEN: { id: ZeitAuswahl; text: string }[] = [
   { id: "anstehend", text: "Anstehend" },
@@ -42,27 +60,29 @@ export function UebersichtListe({
 }: {
   eintraege: Listeneintrag[];
   heute: string;
-  start: { zeit: ZeitAuswahl; art: ArtId | ""; suche: string };
+  start: { zeit: ZeitAuswahl; art: ArtId | ""; suche: string; status: StatusAuswahl };
 }) {
   const [zeit, setZeit] = useState<ZeitAuswahl>(start.zeit);
   const [art, setArt] = useState<ArtId | "">(start.art);
   const [suche, setSuche] = useState(start.suche);
+  const [status, setStatus] = useState<StatusAuswahl>(start.status);
 
   useEffect(() => {
     const p = new URLSearchParams();
     if (zeit !== "anstehend") p.set("zeit", zeit);
     if (art) p.set("art", art);
+    if (status !== "zeitplan") p.set("status", status);
     if (suche.trim()) p.set("q", suche.trim());
     const text = p.toString();
     window.history.replaceState(null, "", text ? `/team?${text}` : "/team");
-  }, [zeit, art, suche]);
+  }, [zeit, art, suche, status]);
 
   const sicht = useMemo(
-    () => filtere(eintraege, { zeit, art: art || undefined, suche }, heute),
-    [eintraege, zeit, art, suche, heute],
+    () => filtere(eintraege, { zeit, art: art || undefined, suche, status }, heute),
+    [eintraege, zeit, art, suche, status, heute],
   );
   const gruppen = useMemo(() => gruppiere(sicht, zeit, heute), [sicht, zeit, heute]);
-  const gefiltert = !!(art || suche.trim());
+  const gefiltert = !!(art || suche.trim() || status !== "zeitplan");
 
   return (
     <div>
@@ -113,12 +133,26 @@ export function UebersichtListe({
               </option>
             ))}
           </SelectField>
+          <SelectField
+            id="status"
+            label="Status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as StatusAuswahl)}
+            className="w-full sm:w-48"
+          >
+            {STATUS_OPTIONEN.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.text}
+              </option>
+            ))}
+          </SelectField>
           {gefiltert && (
             <button
               type="button"
               onClick={() => {
                 setSuche("");
                 setArt("");
+                setStatus("zeitplan");
               }}
               className="pb-3 text-sm underline underline-offset-4"
             >
@@ -198,9 +232,12 @@ function Leer({ insgesamt, gefiltert, zeit }: { insgesamt: number; gefiltert: bo
  */
 function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
   const v = e.values;
-  const knapp = knappAngemeldet(e);
+  // Abgelehntes steht nicht im Zeitplan: ohne Warnungen und etwas zurückgenommen.
+  const abgelehnt = e.status === "abgelehnt";
+  const knapp = abgelehnt ? null : knappAngemeldet(e);
   const aenderung = juengsteAenderung(e, heute);
-  const fehlen = unterlagenFehlen(e, heute);
+  const fehlen = !abgelehnt && unterlagenFehlen(e, heute);
+  const stand = STATUS_ZEILE[e.status];
   const vergangen = v.datum < heute;
   const istHeute = v.datum === heute;
   const datum = datumTeile(v.datum);
@@ -214,8 +251,8 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
   const felderText = felder.length > 3 ? `${felder.slice(0, 3).join(", ")} und ${felder.length - 3} weitere` : felder.join(", ");
 
   return (
-    <li className="relative grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 py-5 transition-colors hover:bg-muted/60 md:grid-cols-[4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] md:gap-x-6 md:px-3">
-      <div className={cn("leading-none", vergangen && "text-muted-foreground")}>
+    <li className={cn("relative grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 py-5 transition-colors hover:bg-muted/60 md:grid-cols-[4.5rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] md:gap-x-6 md:px-3", abgelehnt && "text-muted-foreground")}>
+      <div className={cn("leading-none", (vergangen || abgelehnt) && "text-muted-foreground")}>
         <p className={cn("text-[1.75rem] font-semibold tabular-nums tracking-tight", istHeute && "text-primary")}>{datum.tag}</p>
         <p className="mt-1.5 text-sm text-muted-foreground">
           {datum.wochentag} {datum.monat}
@@ -225,7 +262,7 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
       <div className="min-w-0">
         <Link
           href={`/team/anmeldungen/${e.id}`}
-          className="text-base font-semibold leading-snug after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-md focus-visible:after:ring-[3px] focus-visible:after:ring-ring/40"
+          className={cn("text-base font-semibold leading-snug after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-md focus-visible:after:ring-[3px] focus-visible:after:ring-ring/40", abgelehnt && "font-medium text-muted-foreground line-through decoration-muted-foreground/60")}
         >
           {v.titel}
         </Link>
@@ -244,7 +281,14 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
       </div>
 
       <ul className="col-start-2 space-y-1 text-sm md:col-start-auto">
-        {!vergangen && <li className="text-muted-foreground">{inTagen(v.datum, heute)}</li>}
+        {/* Bei Vergangenem ohne Entscheidung wäre "Zu prüfen" nur Rauschen. */}
+        {!(vergangen && e.status === "neu") && (
+          <li className={cn("flex items-start gap-1.5", stand.klasse)}>
+            <stand.symbol className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            {STATUS[e.status].text}
+          </li>
+        )}
+        {!vergangen && !abgelehnt && <li className="text-muted-foreground">{inTagen(v.datum, heute)}</li>}
         {knapp && (
           <li className="flex items-start gap-1.5 font-medium text-note-foreground">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

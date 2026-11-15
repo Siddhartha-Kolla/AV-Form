@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, Clock, Mail, MessageCircleQuestion, Pencil, TriangleAlert, X } from "lucide-react";
 import { Laden } from "@/components/laden";
 import { Unterlagen } from "@/components/unterlagen/unterlagen";
 import { darf } from "@/lib/berechtigungen";
@@ -23,8 +23,11 @@ import {
   heuteBerlin,
   inTagen,
 } from "@/lib/format";
+import { mailAnLehrkraft, type Entscheidung, type StatusId } from "@/lib/entscheidung";
 import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
+import type { EntscheidungsEintrag } from "@/lib/server/anmeldungen";
 import { oeffneFuerTeam } from "@/lib/server/team-anmeldungen";
+import { Entscheidungsknoepfe } from "./entscheidung";
 import { AnmeldungLoeschen } from "./loeschen";
 
 export const metadata = { title: "Anmeldung | Technikteam" };
@@ -49,26 +52,105 @@ function Fakt({ name, children }: { name: string; children: ReactNode }) {
   );
 }
 
+const VERLAUF_TEXT: Record<Entscheidung, string> = {
+  angenommen: "Angenommen",
+  rueckfrage: "Rückfrage gestellt",
+  abgelehnt: "Abgelehnt",
+};
+
+const STATUS_SYMBOL: Record<StatusId, { symbol: typeof Check; farbe: string }> = {
+  neu: { symbol: Clock, farbe: "text-note-foreground" },
+  angenommen: { symbol: Check, farbe: "text-primary" },
+  rueckfrage: { symbol: MessageCircleQuestion, farbe: "text-note-foreground" },
+  abgelehnt: { symbol: X, farbe: "text-muted-foreground" },
+};
+
+const STATUS_TITEL: Record<StatusId, string> = {
+  neu: "Wartet auf eine Entscheidung",
+  angenommen: "Angenommen",
+  rueckfrage: "Rückfrage an die Lehrkraft offen",
+  abgelehnt: "Abgelehnt, nicht im Zeitplan",
+};
+
+/** Der Stand der Entscheidung: was gilt, wer es wann entschieden hat und was die Lehrkraft erfahren hat. */
+function EntscheidungsFeld({
+  id,
+  status,
+  entscheidungen,
+  kannEntscheiden,
+  mail,
+}: {
+  id: string;
+  status: StatusId;
+  entscheidungen: EntscheidungsEintrag[];
+  kannEntscheiden: boolean;
+  mail: (nachricht: string | null) => string;
+}) {
+  const { symbol: Symbol, farbe } = STATUS_SYMBOL[status];
+  const letzte = entscheidungen[0];
+  const aktuell = status === "neu" ? null : entscheidungen.find((e) => e.status === status);
+  const unterzeile =
+    status === "neu"
+      ? letzte
+        ? `Die Lehrkraft hat die Anmeldung am ${datumZeit(letzte.zeit)} geändert. Bitte noch einmal prüfen.`
+        : "Nimm die Anmeldung an, stelle eine Rückfrage oder lehne sie ab."
+      : aktuell
+        ? `${aktuell.von ?? "Das Team"}, ${datumZeit(aktuell.zeit)}`
+        : "";
+
+  return (
+    <section aria-label="Entscheidung" className="mt-8 rounded-lg border border-border bg-surface px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+        <div className="min-w-0 max-w-[62ch] flex-1">
+          <p className={`flex items-center gap-2 text-[15px] font-semibold ${farbe}`}>
+            <Symbol className="size-4 shrink-0" aria-hidden="true" />
+            <span className="text-foreground">{STATUS_TITEL[status]}</span>
+          </p>
+          {unterzeile && <p className="mt-1 text-sm text-muted-foreground">{unterzeile}</p>}
+          {aktuell?.nachricht && (
+            <p className="mt-3 whitespace-pre-wrap border-l-2 border-border pl-3 text-[15px] leading-relaxed">{aktuell.nachricht}</p>
+          )}
+          {aktuell && (
+            <a
+              href={mail(aktuell.nachricht)}
+              className="mt-3 inline-flex items-center gap-1.5 text-sm underline decoration-muted-foreground underline-offset-4 hover:decoration-foreground"
+            >
+              <Mail className="size-4" aria-hidden="true" />
+              E-Mail an die Lehrkraft vorbereiten
+            </a>
+          )}
+        </div>
+        {kannEntscheiden && <Entscheidungsknoepfe id={id} status={status} />}
+      </div>
+    </section>
+  );
+}
+
 async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) {
   const { konto } = await verlangeSitzung({ berechtigung: "anmeldungen.lesen" });
   const { id } = await params;
   const ergebnis = oeffneFuerTeam(konto, id, await anfrageKontext());
   if (!ergebnis) notFound();
 
-  const { anmeldung, dateien, aenderungen } = ergebnis;
+  const { anmeldung, dateien, aenderungen, entscheidungen } = ergebnis;
+  const status = anmeldung.status;
   const v = anmeldung.values;
   const heute = heuteBerlin();
   const frist = fristBeiAnmeldung(v, anmeldung.erstelltAm);
-  const knapp = frist && frist.status === "knapp" ? frist : null;
-  const fehlen = unterlagenFehlen(
-    { ...alsListeneintrag({ ...anmeldung, dateien, aenderungen }) },
-    heute,
-  );
+  // Abgelehntes steht nicht im Zeitplan, deshalb gibt es dazu keine Warnungen mehr.
+  const imZeitplan = status !== "abgelehnt";
+  const knapp = imZeitplan && frist && frist.status === "knapp" ? frist : null;
+  const fehlen = imZeitplan && unterlagenFehlen(alsListeneintrag({ ...anmeldung, dateien, aenderungen }), heute);
   const gruppen = technikGruppen(v);
   const termine = terminListe(v);
   const techniker = betreuungNoetig(v);
   const arten = v.arten.map((a) => (a === "sonstiges" && v.art_sonstiges.trim() ? v.art_sonstiges.trim() : artBezeichnung(a)));
   const bevorstehend = v.datum >= heute;
+  // Änderungen und Entscheidungen in einer Zeitleiste, die neueste oben.
+  const verlauf = [
+    ...aenderungen.map((a) => ({ art: "aenderung" as const, zeit: a.zeit, a })),
+    ...entscheidungen.map((e) => ({ art: "entscheidung" as const, zeit: e.zeit, e })),
+  ].sort((x, y) => y.zeit.localeCompare(x.zeit));
 
   return (
     // @container: Die Spalten richten sich nach dem Platz, der der Seite bleibt, auch wenn rechts die Vorschau steht.
@@ -82,7 +164,18 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
       </Link>
 
       <header>
-        <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">{v.titel}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <h1 className="min-w-0 text-balance text-2xl font-semibold tracking-tight sm:text-3xl">{v.titel}</h1>
+          {darf(konto.rolle, "anmeldungen.bearbeiten") && (
+            <Link
+              href={`/team/anmeldungen/${anmeldung.id}/bearbeiten`}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-input bg-surface px-4 text-[15px] font-medium transition-colors hover:border-foreground/50"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+              Bearbeiten
+            </Link>
+          )}
+        </div>
         <p className="mt-3 text-lg font-medium">
           {datumLangMitWochentag(v.datum)}
           {bevorstehend && <span className="ml-2 text-base font-normal text-muted-foreground">{inTagen(v.datum, heute)}</span>}
@@ -111,7 +204,24 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
         )}
       </header>
 
-      <dl className="mt-8 grid gap-x-8 gap-y-5 border-y border-border py-5 @xl:grid-cols-3">
+      <EntscheidungsFeld
+        id={anmeldung.id}
+        status={status}
+        entscheidungen={entscheidungen}
+        kannEntscheiden={darf(konto.rolle, "anmeldungen.entscheiden")}
+        mail={(nachricht) =>
+          mailAnLehrkraft({
+            email: v.email,
+            lehrkraft: v.lehrkraft,
+            titel: v.titel,
+            status: status as Entscheidung,
+            nachricht,
+            absender: konto.anzeigename,
+          })
+        }
+      />
+
+      <dl className="mt-6 grid gap-x-8 gap-y-5 border-y border-border py-5 @xl:grid-cols-3">
         <Fakt name="Lehrkraft">
           {v.lehrkraft}
           <a href={`mailto:${v.email}`} className="mt-0.5 block text-sm font-normal text-muted-foreground underline underline-offset-4 hover:text-foreground">
@@ -207,13 +317,41 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
           </Abschnitt>
 
           <Abschnitt titel="Verlauf">
-            <ul className="space-y-3 text-[15px]">
-              {aenderungen.map((a) => (
-                <li key={a.zeit}>
-                  <p className="text-sm tabular-nums text-muted-foreground">{datumZeit(a.zeit)}</p>
-                  <p>Geändert: {a.felder.map(feldBezeichnung).join(", ")}</p>
-                </li>
-              ))}
+            <ul className="space-y-4 text-[15px]">
+              {verlauf.map((eintrag) => {
+                if (eintrag.art === "entscheidung") {
+                  const e = eintrag.e;
+                  return (
+                    <li key={`e-${e.zeit}`}>
+                      <p className="text-sm tabular-nums text-muted-foreground">{datumZeit(e.zeit)}</p>
+                      <p>
+                        {e.status === "neu"
+                          ? "Wieder zu prüfen: Die Lehrkraft hat Änderungen eingetragen"
+                          : `${e.von ?? "Das Team"}: ${VERLAUF_TEXT[e.status]}`}
+                      </p>
+                      {e.nachricht && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">Nachricht: {e.nachricht}</p>}
+                    </li>
+                  );
+                }
+                const a = eintrag.a;
+                const felder = a.felder.filter((f) => !f.startsWith("datei")).map(feldBezeichnung);
+                return (
+                  <li key={`a-${a.zeit}`}>
+                    <p className="text-sm tabular-nums text-muted-foreground">{datumZeit(a.zeit)}</p>
+                    <p>
+                      {a.von ? `${a.von}: ` : "Geändert: "}
+                      {felder.length > 0 ? felder.join(", ") : a.dateienHinzu.length + a.dateienWeg.length > 0 ? "Unterlagen" : ""}
+                    </p>
+                    {a.dateienHinzu.length > 0 && (
+                      <p className="text-sm text-muted-foreground">Hinzugefügt: {a.dateienHinzu.join(", ")}</p>
+                    )}
+                    {a.dateienWeg.length > 0 && (
+                      <p className="text-sm text-muted-foreground">Entfernt: {a.dateienWeg.join(", ")}</p>
+                    )}
+                    {a.notiz && <p className="mt-0.5 text-sm text-muted-foreground">Vermerk: {a.notiz}</p>}
+                  </li>
+                );
+              })}
               <li>
                 <p className="text-sm tabular-nums text-muted-foreground">{datumZeit(anmeldung.erstelltAm)}</p>
                 <p>Angemeldet von {v.lehrkraft}</p>

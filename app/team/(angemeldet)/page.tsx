@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Laden } from "@/components/laden";
-import { alsListeneintrag, istArt, zusammenfassung, type ZeitAuswahl } from "@/lib/dashboard";
+import { alsListeneintrag, istArt, istStatusAuswahl, zusammenfassung, type ZeitAuswahl } from "@/lib/dashboard";
 import { heuteBerlin } from "@/lib/format";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
 import { alleFuerTeam } from "@/lib/server/team-anmeldungen";
@@ -28,6 +28,8 @@ async function UebersichtInhalt({
   const artWert = eintrag(parameter.art);
   const art = istArt(artWert) ? artWert : "";
   const suche = eintrag(parameter.q).slice(0, 80);
+  const statusWert = eintrag(parameter.status);
+  const status = istStatusAuswahl(statusWert) ? statusWert : "zeitplan";
 
   const heute = heuteBerlin();
   const { anmeldungen, unlesbar } = alleFuerTeam(konto);
@@ -39,6 +41,8 @@ async function UebersichtInhalt({
     stand.anstehend === 0
       ? "Zurzeit steht keine Veranstaltung an."
       : `${plural(stand.anstehend, "Veranstaltung steht", "Veranstaltungen stehen")} an.`,
+    stand.zuPruefen > 0 && `Davon ${stand.zuPruefen === 1 ? "wartet" : "warten"} ${stand.zuPruefen} auf eine Entscheidung.`,
+    stand.rueckfragen > 0 && `Bei ${plural(stand.rueckfragen, "Anmeldung", "Anmeldungen")} ist eine Rückfrage offen.`,
     stand.knapp > 0 && `${plural(stand.knapp, "wurde", "wurden")} zu knapp angemeldet.`,
     stand.geaendert > 0 && `${plural(stand.geaendert, "hat", "haben")} Änderungen aus den letzten 7 Tagen.`,
   ].filter(Boolean);
@@ -55,7 +59,7 @@ async function UebersichtInhalt({
         </p>
       )}
 
-      <UebersichtListe eintraege={eintraege} heute={heute} start={{ zeit, art, suche }} />
+      <UebersichtListe eintraege={eintraege} heute={heute} start={{ zeit, art, suche, status }} />
     </div>
   );
 }

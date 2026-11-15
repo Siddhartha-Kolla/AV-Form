@@ -1,7 +1,7 @@
 // Legt erfundene Beispiel-Anmeldungen an, damit sich die Übersicht ansehen lässt.
 // Nur für die Entwicklung. Aufruf: npm run db:seed
 import { emptyValues, type FormValues } from "../lib/registration.ts";
-import { aktualisiereAnmeldung, erstelleAnmeldung, findeNachId } from "../lib/server/anmeldungen.ts";
+import { aktualisiereAnmeldung, entscheideAnmeldung, erstelleAnmeldung, findeNachId } from "../lib/server/anmeldungen.ts";
 import { speichereDatei } from "../lib/server/dateien.ts";
 import { db, dbSchliessen } from "../lib/server/db.ts";
 import { beispielDocx, beispielPdf, beispielWav } from "./beispieldateien.ts";
@@ -166,6 +166,10 @@ for (const [i, werte] of eintraege.entries()) {
     const alt = findeNachId(id)!.values;
     aktualisiereAnmeldung(id, { ...alt, ort: "Aula (Bühne vorne)", mikrofone_anzahl: "8" });
   }
+  // Ein paar Entscheidungen, damit die Übersicht nicht nur "Zu prüfen" zeigt.
+  const seed = { id: "seed", name: "Technikteam (Beispiel)" };
+  if (i === 0) entscheideAnmeldung(id, { status: "angenommen", nachricht: "Aufbau ab 16:30 Uhr in der Aula.", erwarteterStatus: "neu", akteur: seed });
+  if (i === 1) entscheideAnmeldung(id, { status: "rueckfrage", nachricht: "Wie viele Personen sprechen auf dem Podium?", erwarteterStatus: "neu", akteur: seed });
   console.log(`${werte.titel}\n  Link der Lehrkraft: /anmeldung/${token}\n  Team-ID: ${id}`);
 }
 dbSchliessen();
