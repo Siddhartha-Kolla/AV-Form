@@ -120,6 +120,16 @@ const MIGRATIONEN: string[] = [
   ) STRICT;
   CREATE INDEX entscheidungen_anmeldung ON entscheidungen (anmeldung_id);
   `,
+  // Version 5: Profilbilder der Teammitglieder. bild_version ändert sich mit jedem neuen Bild.
+  `
+  ALTER TABLE konten ADD COLUMN bild_version TEXT;
+
+  CREATE TABLE konto_bilder (
+    konto_id TEXT PRIMARY KEY REFERENCES konten (id) ON DELETE CASCADE,
+    typ      TEXT NOT NULL CHECK (typ IN ('image/jpeg', 'image/png', 'image/webp')),
+    daten    BLOB NOT NULL
+  ) STRICT;
+  `,
 ];
 
 const global = globalThis as unknown as { __technikDb?: Database.Database };

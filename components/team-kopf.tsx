@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, ChevronDown, LogOut, ScrollText, User, Users } from "lucide-react";
-import { kuerzel } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { cn } from "@/lib/utils";
 
 export type NavSymbol = "anmeldungen" | "mitglieder" | "protokoll";
@@ -39,11 +39,15 @@ export function TeamKopf({
   eintraege,
   name,
   rolle,
+  kontoId,
+  bildVersion,
   abmelden,
 }: {
   eintraege: NavEintrag[];
   name: string;
   rolle: string;
+  kontoId: string;
+  bildVersion: string | null;
   abmelden: () => Promise<void>;
 }) {
   const pfad = usePathname();
@@ -79,7 +83,7 @@ export function TeamKopf({
           </nav>
 
           <div className="ml-auto">
-            <KontoMenue name={name} rolle={rolle} abmelden={abmelden} />
+            <KontoMenue name={name} rolle={rolle} kontoId={kontoId} bildVersion={bildVersion} abmelden={abmelden} />
           </div>
         </div>
       </header>
@@ -117,7 +121,19 @@ export function TeamKopf({
 }
 
 /** Konto-Menü: Name, Rolle, Mein Konto, Abmelden. Schließt bei Klick daneben, mit Escape und beim Seitenwechsel. */
-function KontoMenue({ name, rolle, abmelden }: { name: string; rolle: string; abmelden: () => Promise<void> }) {
+function KontoMenue({
+  name,
+  rolle,
+  kontoId,
+  bildVersion,
+  abmelden,
+}: {
+  name: string;
+  rolle: string;
+  kontoId: string;
+  bildVersion: string | null;
+  abmelden: () => Promise<void>;
+}) {
   const pfad = usePathname();
   // Das Menü merkt sich die Seite, auf der es geöffnet wurde. Ein Seitenwechsel schließt es damit von selbst.
   const [offenBei, setOffenBei] = useState<string | null>(null);
@@ -166,12 +182,7 @@ function KontoMenue({ name, rolle, abmelden }: { name: string; rolle: string; ab
           offen && "bg-muted",
         )}
       >
-        <span
-          aria-hidden="true"
-          className="grid size-8 place-items-center rounded-full bg-muted text-xs font-semibold text-foreground ring-1 ring-inset ring-border"
-        >
-          {kuerzel(name)}
-        </span>
+        <Avatar id={kontoId} name={name} version={bildVersion} className="size-8 text-xs" />
         <span className="hidden max-w-40 truncate text-sm lg:inline">{name}</span>
         <ChevronDown
           className={cn("size-4 text-muted-foreground transition-transform duration-150", offen && "rotate-180")}

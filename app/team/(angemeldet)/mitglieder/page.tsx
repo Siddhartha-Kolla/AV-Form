@@ -1,8 +1,9 @@
+import { Avatar } from "@/components/avatar";
 import { Laden } from "@/components/laden";
 import { Suspense } from "react";
 import { Lock } from "lucide-react";
 import { darfKontoVerwalten, ROLLEN, vergebbareRollen } from "@/lib/berechtigungen";
-import { datumZeit, kuerzel } from "@/lib/format";
+import { datumZeit } from "@/lib/format";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
 import { listeKonten, type Konto } from "@/lib/server/auth/konten";
 import { zaehleSitzungen } from "@/lib/server/auth/sitzungen";
@@ -75,14 +76,12 @@ async function MitgliederInhalt() {
                 className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1.5 py-4 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.1fr)_12rem]"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className={`grid size-10 shrink-0 place-items-center rounded-full text-sm font-semibold ${
-                      m.status === "gesperrt" ? "bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"
-                    }`}
-                  >
-                    {kuerzel(m.anzeigename)}
-                  </span>
+                  <Avatar
+                    id={m.id}
+                    name={m.anzeigename}
+                    version={m.bildVersion}
+                    className={`size-10 text-sm ${m.status === "gesperrt" ? "opacity-60" : ""}`}
+                  />
                   <div className="min-w-0">
                     <p className="truncate text-[15px] font-medium">
                       {m.anzeigename}

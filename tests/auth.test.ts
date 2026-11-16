@@ -367,3 +367,60 @@ describe("Admin", () => {
     verw.loescheMitglied(chef, ada.id, kontext);
   });
 });
+
+describe("Profilbild", () => {
+  // Ein winziges, gültiges PNG und ein gültiger JPEG-Anfang.
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==", "base64");
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(40)]);
+
+  it("erkennt Bilder am Inhalt und weist alles andere ab", async () => {
+    const { pruefeBild, MAX_BILD_BYTES } = await import("../lib/konto-bild.ts");
+    assert.deepEqual(pruefeBild(png), { ok: true, typ: "image/png" });
+    assert.deepEqual(pruefeBild(jpeg), { ok: true, typ: "image/jpeg" });
+    const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 "), Buffer.alloc(8)]);
+    assert.deepEqual(pruefeBild(webp), { ok: true, typ: "image/webp" });
+    for (const schlecht of [
+      Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+      Buffer.from("GIF89a" + "x".repeat(30)),
+      Buffer.from("<html>" + "x".repeat(30)),
+      Buffer.alloc(0),
+      Buffer.alloc(MAX_BILD_BYTES + 1, 0xff),
+    ]) {
+      assert.equal(pruefeBild(schlecht).ok, false);
+    }
+  });
+
+  it("speichert das Bild verschlüsselt, tauscht es aus und räumt mit dem Konto auf", async () => {
+    const bilder = await import("../lib/server/auth/bilder.ts");
+    const { konto } = await verw.legeMitgliedAn(
+      konten.findeKontoNachBenutzername("chef")!,
+      { benutzername: "bild.test", anzeigename: "Bild Test", rolle: "mitglied" },
+      kontext,
+    );
+    assert.equal(konto.bildVersion, null);
+    assert.equal(bilder.ladeKontoBild(konto.id), null);
+
+    const v1 = bilder.speichereKontoBild(konto, png, kontext);
+    assert.equal(konten.findeKonto(konto.id)!.bildVersion, v1);
+    const geladen = bilder.ladeKontoBild(konto.id)!;
+    assert.equal(geladen.typ, "image/png");
+    assert.ok(geladen.daten.equals(png));
+    const roh = db().prepare("SELECT daten FROM konto_bilder WHERE konto_id = ?").get(konto.id) as { daten: Buffer };
+    assert.ok(!roh.daten.includes(png.subarray(0, 8)), "Das Bild liegt im Klartext in der Datenbank");
+
+    const v2 = bilder.speichereKontoBild(konto, jpeg, kontext);
+    assert.notEqual(v1, v2);
+    assert.equal(bilder.ladeKontoBild(konto.id)!.typ, "image/jpeg");
+    assert.throws(() => bilder.speichereKontoBild(konto, Buffer.from("kein Bild, nur Text"), kontext), /Bild/);
+    assert.equal(bilder.ladeKontoBild(konto.id)!.version, v2, "ein abgewiesenes Bild ändert nichts");
+
+    bilder.entferneKontoBild(konto, kontext);
+    assert.equal(bilder.ladeKontoBild(konto.id), null);
+    assert.equal(konten.findeKonto(konto.id)!.bildVersion, null);
+
+    bilder.speichereKontoBild(konto, png, kontext);
+    verw.loescheMitglied(konten.findeKontoNachBenutzername("chef")!, konto.id, kontext);
+    const uebrig = db().prepare("SELECT COUNT(*) AS n FROM konto_bilder WHERE konto_id = ?").get(konto.id) as { n: number };
+    assert.equal(uebrig.n, 0);
+  });
+});

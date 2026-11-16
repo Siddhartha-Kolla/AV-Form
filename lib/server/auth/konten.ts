@@ -31,6 +31,8 @@ export type Konto = {
   erstelltAm: string;
   geaendertAm: string;
   letzterLogin: string | null;
+  /** Kennung des Profilbilds. Null, wenn es keins gibt. */
+  bildVersion: string | null;
 };
 
 type Zeile = {
@@ -42,9 +44,10 @@ type Zeile = {
   erstellt_am: string;
   geaendert_am: string;
   letzter_login: string | null;
+  bild_version: string | null;
 };
 
-const SPALTEN = "id, daten, rolle, status, muss_passwort_aendern, erstellt_am, geaendert_am, letzter_login";
+const SPALTEN = "id, daten, rolle, status, muss_passwort_aendern, erstellt_am, geaendert_am, letzter_login, bild_version";
 
 export function normalisiereBenutzername(name: string): string {
   return name.normalize("NFKC").trim().toLowerCase();
@@ -67,6 +70,7 @@ function zuKonto(z: Zeile): Konto {
     erstelltAm: z.erstellt_am,
     geaendertAm: z.geaendert_am,
     letzterLogin: z.letzter_login,
+    bildVersion: z.bild_version,
   };
 }
 

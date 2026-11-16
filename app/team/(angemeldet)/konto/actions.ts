@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
+import { entferneKontoBild, speichereKontoBild } from "@/lib/server/auth/bilder";
 import { FachFehler } from "@/lib/server/auth/fehler";
 import { aendereEigenesPasswort, beendeEigeneAndereSitzungen } from "@/lib/server/auth/verwaltung";
 
@@ -35,4 +36,27 @@ export async function andereSitzungenBeendenAktion(): Promise<KontoZustand> {
   const anzahl = beendeEigeneAndereSitzungen(konto, sitzungId, await anfrageKontext());
   revalidatePath("/team/konto");
   return { ok: true, meldung: anzahl === 0 ? "Es gab keine anderen Sitzungen." : `${anzahl} andere Sitzung(en) beendet.` };
+}
+
+/** Das Profilbild kommt fertig zugeschnitten aus dem Browser. Der Server prüft Format und Größe trotzdem selbst. */
+export async function bildSpeichernAktion(formData: FormData): Promise<KontoZustand> {
+  const { konto } = await verlangeSitzung({ passwortWechsel: true });
+  const datei = formData.get("bild");
+  if (!(datei instanceof File)) return { ok: false, fehler: "Es wurde kein Bild gesendet." };
+  try {
+    speichereKontoBild(konto, Buffer.from(await datei.arrayBuffer()), await anfrageKontext());
+  } catch (fehler) {
+    if (fehler instanceof FachFehler) return { ok: false, fehler: fehler.message };
+    console.error(fehler);
+    return { ok: false, fehler: "Das hat nicht geklappt. Bitte noch einmal probieren." };
+  }
+  revalidatePath("/team", "layout");
+  return { ok: true, meldung: "Profilbild gespeichert." };
+}
+
+export async function bildEntfernenAktion(): Promise<KontoZustand> {
+  const { konto } = await verlangeSitzung({ passwortWechsel: true });
+  entferneKontoBild(konto, await anfrageKontext());
+  revalidatePath("/team", "layout");
+  return { ok: true, meldung: "Profilbild entfernt." };
 }

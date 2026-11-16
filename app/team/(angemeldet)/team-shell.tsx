@@ -25,7 +25,14 @@ export async function TeamShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <TeamKopf eintraege={eintraege} name={konto.anzeigename} rolle={ROLLEN[konto.rolle].name} abmelden={abmeldenAktion} />
+      <TeamKopf
+        eintraege={eintraege}
+        name={konto.anzeigename}
+        rolle={ROLLEN[konto.rolle].name}
+        kontoId={konto.id}
+        bildVersion={konto.bildVersion}
+        abmelden={abmeldenAktion}
+      />
       <div
         className={cn(
           "mx-auto w-full max-w-[64rem] px-3 pt-5 sm:px-6 sm:pt-8",
