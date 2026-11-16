@@ -9,6 +9,7 @@ import { Dialog } from "@/components/dialog";
 import { Section, TextArea } from "@/components/fields";
 import { FileDrop } from "@/components/file-drop";
 import { FormularAbschnitte, useFormular } from "@/components/formular-abschnitte";
+import { useHeute } from "@/components/use-heute";
 import { datumNumerisch } from "@/lib/format";
 import { feldBezeichnung, geaenderteFelder } from "@/lib/dashboard";
 import { MAX_DATEIEN, dateiGroesse, validate, type FormValues } from "@/lib/registration";
@@ -18,20 +19,29 @@ type BestehendeDatei = { id: string; name: string; groesse: number; erstelltAm: 
 type Status = "ruhig" | "speichert" | "fehler";
 
 /**
- * Bearbeitung einer Anmeldung durch das Team: dieselben Felder wie im Formular der Lehrkräfte, dazu Dateien
- * entfernen und hinzufügen und ein Vermerk, woher die Änderung kommt. Gespeichert wird alles zusammen.
+ * Bearbeitung einer Anmeldung: dieselben Felder wie im Formular der Lehrkräfte, dazu Dateien entfernen und
+ * hinzufügen. Gespeichert wird alles zusammen. Das Team ("team") duzt sich und schreibt einen Vermerk, woher die
+ * Änderung kommt. Die Lehrkraft ("lehrkraft", über den privaten Link) wird gesiezt und schreibt keinen Vermerk.
  */
 export function AnmeldungBearbeiten({
-  id,
+  modus,
+  speichernUrl,
+  zurueck,
   revision,
   start,
   dateien,
 }: {
-  id: string;
+  modus: "team" | "lehrkraft";
+  /** Wohin die Änderung geschickt wird. */
+  speichernUrl: string;
+  /** Wohin "Zurück" und nach dem Speichern führt. */
+  zurueck: string;
   revision: number;
   start: FormValues;
   dateien: BestehendeDatei[];
 }) {
+  const team = modus === "team";
+  const heute = useHeute();
   const router = useRouter();
   const formular = useFormular(start);
   const { values } = formular;
@@ -46,7 +56,8 @@ export function AnmeldungBearbeiten({
   const [dateiFehler, setDateiFehler] = useState<string[]>([]);
   const zusammenfassung = useRef<HTMLDivElement>(null);
 
-  const clientFehler = useMemo(() => validate(values, null), [values]);
+  // Das Team darf auch vergangene Termine bearbeiten, Lehrkräfte nicht.
+  const clientFehler = useMemo(() => validate(values, team ? null : heute.datum), [values, team, heute.datum]);
   const fehler = (key: string) => serverFehler[key] ?? (abgesendet || angeklickt[key] ? clientFehler[key] : undefined);
   const alleFehler = { ...clientFehler, ...serverFehler };
 
@@ -89,7 +100,7 @@ export function AnmeldungBearbeiten({
     for (const d of neueDateien) daten.append("dateien", d);
 
     try {
-      const antwort = await fetch(`/team/anmeldungen/${id}/speichern`, { method: "POST", body: daten });
+      const antwort = await fetch(speichernUrl, { method: "POST", body: daten });
       const ergebnis = (await antwort.json()) as {
         ok: boolean;
         meldung?: string;
@@ -97,7 +108,7 @@ export function AnmeldungBearbeiten({
         dateiFehler?: string[];
       };
       if (ergebnis.ok) {
-        router.push(`/team/anmeldungen/${id}`);
+        router.push(zurueck);
         router.refresh();
         return;
       }
@@ -106,7 +117,7 @@ export function AnmeldungBearbeiten({
       setMeldung(ergebnis.meldung ?? (ergebnis.fehler || ergebnis.dateiFehler ? null : "Das Speichern hat nicht geklappt."));
       setStatus("fehler");
     } catch {
-      setMeldung("Keine Verbindung zum Server. Deine Änderungen sind noch hier, bitte versuche es noch einmal.");
+      setMeldung(team ? "Keine Verbindung zum Server. Deine Änderungen sind noch hier, bitte versuche es noch einmal." : "Keine Verbindung zum Server. Ihre Änderungen sind noch hier, bitte versuchen Sie es noch einmal.");
       setStatus("fehler");
     }
     requestAnimationFrame(() => zusammenfassung.current?.focus());
@@ -121,7 +132,7 @@ export function AnmeldungBearbeiten({
       if (name) setAngeklickt((t) => (t[name] ? t : { ...t, [name]: true }));
     }} aria-busy={speichert}>
       <Link
-        href={`/team/anmeldungen/${id}`}
+        href={zurueck}
         className="-ml-1 mb-6 inline-flex items-center gap-1 rounded-md py-1 pr-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronLeft className="size-4" aria-hidden="true" />
@@ -131,8 +142,9 @@ export function AnmeldungBearbeiten({
       <header className="mb-10">
         <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">Anmeldung bearbeiten</h1>
         <p className="mt-3 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
-          Hier trägst du Änderungen ein, die zum Beispiel per E-Mail gekommen sind. Danach sehen alle im Team den neuen
-          Stand und im Verlauf, wer was geändert hat.
+          {team
+            ? "Hier trägst du Änderungen ein, die zum Beispiel per E-Mail gekommen sind. Danach sehen alle im Team den neuen Stand und im Verlauf, wer was geändert hat."
+            : "Hier ändern Sie Ihre Angaben und reichen Unterlagen nach. Das Technikteam sieht den neuen Stand sofort. Änderungen an einer schon angenommenen Anmeldung prüft das Team noch einmal."}
         </p>
       </header>
 
@@ -211,6 +223,7 @@ export function AnmeldungBearbeiten({
           <FileDrop files={neueDateien} onChange={setNeueDateien} maximal={Math.max(0, verbleibend)} />
         </Section>
 
+        {team && (
         <Section id="vermerk" nr="9" title="Vermerk zur Änderung">
           <TextArea
             id="notiz"
@@ -222,9 +235,10 @@ export function AnmeldungBearbeiten({
             className="max-w-xl"
           />
         </Section>
+        )}
       </fieldset>
 
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-5 mt-14 border-t border-border bg-surface px-5 py-3 sm:bottom-0 sm:-mx-10 sm:px-10">
+      <div className={cn("sticky z-20 -mx-5 mt-14 border-t border-border bg-surface px-5 py-3 sm:bottom-0 sm:-mx-10 sm:px-10", team ? "bottom-[calc(4rem+env(safe-area-inset-bottom))]" : "bottom-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))]")}>
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <p className="min-w-0 flex-1 text-sm text-muted-foreground" aria-live="polite">
             {veraendert ? (
@@ -240,12 +254,12 @@ export function AnmeldungBearbeiten({
             {veraendert ? (
               <Dialog
                 titel="Änderungen verwerfen?"
-                beschreibung="Alles, was du hier eingegeben hast, geht verloren."
+                beschreibung={team ? "Alles, was du hier eingegeben hast, geht verloren." : "Alles, was Sie hier eingegeben haben, geht verloren."}
                 knopf="Abbrechen"
                 knopfClassName="h-11 px-4 text-[15px]"
               >
                 <Link
-                  href={`/team/anmeldungen/${id}`}
+                  href={zurueck}
                   className="inline-flex h-10 items-center rounded-md border border-destructive/40 px-4 text-[15px] font-medium text-destructive transition-colors hover:bg-destructive/10"
                 >
                   Ja, verwerfen
@@ -253,7 +267,7 @@ export function AnmeldungBearbeiten({
               </Dialog>
             ) : (
               <Link
-                href={`/team/anmeldungen/${id}`}
+                href={zurueck}
                 className="inline-flex h-11 items-center rounded-md border border-input bg-surface px-4 text-[15px] font-medium transition-colors hover:border-foreground/50"
               >
                 Zurück

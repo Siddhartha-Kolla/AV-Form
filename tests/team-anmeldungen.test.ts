@@ -15,6 +15,8 @@ const { emptyValues } = await import("../lib/registration.ts");
 const anm = await import("../lib/server/anmeldungen.ts");
 const dat = await import("../lib/server/dateien.ts");
 const team = await import("../lib/server/team-anmeldungen.ts");
+const einr = await import("../lib/server/einreichen.ts");
+const lehr = await import("../lib/server/lehrkraft.ts");
 const prot = await import("../lib/server/auth/protokoll.ts");
 const verw = await import("../lib/server/auth/verwaltung.ts");
 const konten = await import("../lib/server/auth/konten.ts");
@@ -338,5 +340,112 @@ describe("Öffentliche Belegung", () => {
     const liste = anm.listeBelegung("2098-03-01", "2098-03-31");
     assert.deepEqual(liste, [{ datum: "2098-03-10", beginn: "18:00", ende: "20:00" }]);
     assert.ok(!JSON.stringify(liste).includes("Geheim"));
+  });
+});
+
+describe("Anmeldung durch die Lehrkraft", () => {
+  const gueltig = { ...emptyValues(), titel: "Elternabend", lehrkraft: "Herr Test", email: "h@schule.example", datum: "2099-05-04", beginn: "19:00", ende: "21:00", ort: "Mensa", arten: ["info"] };
+  const ip = (n: number) => ({ ip: `198.51.100.${n}`, geraet: "Test" });
+
+  it("legt die Anmeldung samt Dateien an und protokolliert sie", async () => {
+    const ergebnis = await einr.reicheAnmeldungEin(
+      { values: gueltig, dateien: [{ name: "Ablauf.pdf", inhalt: Buffer.from("x") }] },
+      ip(1),
+    );
+    assert.ok(ergebnis.ok);
+    const treffer = anm.listeAnmeldungen().anmeldungen.find((a) => a.values.titel === "Elternabend")!;
+    assert.equal(treffer.status, "neu");
+    assert.equal(dat.listeDateien(treffer.id).length, 1);
+    assert.equal(prot.listeProtokoll({ ereignisse: ["anmeldung.eingegangen"] }).zeilen.length >= 1, true);
+  });
+
+  it("weist ungültige Angaben ab und speichert dann nichts", async () => {
+    const vorher = anm.listeAnmeldungen().anmeldungen.length;
+    const ohneTitel = await einr.reicheAnmeldungEin({ values: { ...gueltig, titel: "  " }, dateien: [] }, ip(2));
+    assert.ok(!ohneTitel.ok && ohneTitel.fehler?.titel);
+    const vergangen = await einr.reicheAnmeldungEin({ values: { ...gueltig, datum: "2020-01-01" }, dateien: [] }, ip(2));
+    assert.ok(!vergangen.ok && vergangen.fehler?.datum);
+    const virus = await einr.reicheAnmeldungEin({ values: gueltig, dateien: [{ name: "virus.exe", inhalt: Buffer.from("x") }] }, ip(2));
+    assert.ok(!virus.ok && virus.dateiFehler?.[0].includes("virus.exe"));
+    const muell = await einr.reicheAnmeldungEin({ values: "kein Objekt", dateien: [] }, ip(2));
+    assert.ok(!muell.ok);
+    assert.equal(anm.listeAnmeldungen().anmeldungen.length, vorher);
+  });
+
+  it("bremst zu viele Einreichungen von derselben Adresse", async () => {
+    for (let i = 0; i < 6; i++) assert.ok((await einr.reicheAnmeldungEin({ values: { ...gueltig, titel: `Serie ${i}` }, dateien: [] }, ip(3))).ok);
+    const zuViele = await einr.reicheAnmeldungEin({ values: gueltig, dateien: [] }, ip(3));
+    assert.ok(!zuViele.ok && zuViele.meldung?.includes("zu viele"));
+    // Eine andere Adresse ist nicht betroffen.
+    assert.ok((await einr.reicheAnmeldungEin({ values: gueltig, dateien: [] }, ip(4))).ok);
+  });
+});
+
+describe("Privater Link der Lehrkraft", () => {
+  const neu = () => neueAnmeldung();
+
+  it("zeigt nur die eigene Anmeldung und kennt ungültige Links nicht", () => {
+    const { id, token } = neu();
+    const ansicht = lehr.ladeFuerLehrkraft(token)!;
+    assert.equal(ansicht.anmeldung.id, id);
+    assert.equal(ansicht.kannAendern, true);
+    assert.equal(lehr.ladeFuerLehrkraft("x".repeat(43)), null);
+    assert.equal(lehr.ladeFuerLehrkraft("kurz"), null);
+  });
+
+  it("zeigt die Nachricht des Teams zur aktuellen Entscheidung", () => {
+    const { id, token } = neu();
+    team.entscheideFuerTeam(mitglied, id, { status: "rueckfrage", nachricht: "Bitte Ablaufplan nachreichen.", erwarteterStatus: "neu" }, kontext);
+    const ansicht = lehr.ladeFuerLehrkraft(token)!;
+    assert.equal(ansicht.anmeldung.status, "rueckfrage");
+    assert.equal(ansicht.entscheidung?.nachricht, "Bitte Ablaufplan nachreichen.");
+  });
+
+  it("lässt die Lehrkraft ändern und setzt Angenommenes auf Zu prüfen zurück", () => {
+    const { id, token } = neu();
+    team.entscheideFuerTeam(mitglied, id, { status: "angenommen", nachricht: "", erwarteterStatus: "neu" }, kontext);
+    const a = anm.findeNachId(id)!;
+    const ergebnis = lehr.bearbeiteFuerLehrkraft(
+      token,
+      { ...eingabe(a, { ort: "Foyer" }), notiz: "sollte ignoriert werden", neueDateien: [{ name: "Skript.pdf", inhalt: Buffer.from("x") }] },
+      kontext,
+    );
+    assert.ok(ergebnis.ok);
+    const danach = anm.findeNachId(id)!;
+    assert.equal(danach.values.ort, "Foyer");
+    assert.equal(danach.status, "neu");
+    assert.equal(dat.listeDateien(id).length, 1);
+    const verlauf = anm.listeAenderungen(id)[0];
+    assert.equal(verlauf.von, null);
+    assert.equal(verlauf.notiz, null);
+    assert.equal(prot.listeProtokoll({ ereignisse: ["anmeldung.von_lehrkraft_geaendert"] }).zeilen.length >= 1, true);
+  });
+
+  it("verweigert Änderungen an Abgelehntem, an Vergangenem und mit veraltetem Stand", () => {
+    const abgelehnt = neu();
+    team.entscheideFuerTeam(mitglied, abgelehnt.id, { status: "abgelehnt", nachricht: "", erwarteterStatus: "neu" }, kontext);
+    const a = anm.findeNachId(abgelehnt.id)!;
+    const r1 = lehr.bearbeiteFuerLehrkraft(abgelehnt.token, eingabe(a, { ort: "X" }), kontext);
+    assert.ok(!r1.ok && r1.meldung?.includes("abgelehnt"));
+    assert.equal(lehr.ladeFuerLehrkraft(abgelehnt.token)!.kannAendern, false);
+
+    const alt = anm.erstelleAnmeldung({ ...emptyValues(), titel: "Alt", lehrkraft: "L", email: "a@schule.example", datum: "2020-01-01", beginn: "10:00", ende: "11:00", ort: "Aula", arten: ["konzert"] });
+    const b = anm.findeNachId(alt.id)!;
+    const r2 = lehr.bearbeiteFuerLehrkraft(alt.token, eingabe(b, { ort: "X" }), kontext);
+    assert.ok(!r2.ok && r2.meldung?.includes("Vergangenheit"));
+
+    const aktuell = neu();
+    const c = anm.findeNachId(aktuell.id)!;
+    assert.ok(team.bearbeiteFuerTeam(mitglied, aktuell.id, eingabe(c, { ort: "Team-Ort" }), kontext).ok);
+    const r3 = lehr.bearbeiteFuerLehrkraft(aktuell.token, eingabe(c, { ort: "Lehrkraft-Ort" }), kontext);
+    assert.ok(!r3.ok && r3.meldung?.includes("inzwischen geändert"));
+    assert.equal(anm.findeNachId(aktuell.id)!.values.ort, "Team-Ort");
+  });
+
+  it("verlangt für eine Vergangenheit-Änderung des Datums einen künftigen Tag", () => {
+    const { id, token } = neu();
+    const a = anm.findeNachId(id)!;
+    const r = lehr.bearbeiteFuerLehrkraft(token, eingabe(a, { datum: "2020-02-02" }), kontext);
+    assert.ok(!r.ok && r.fehler?.datum);
   });
 });

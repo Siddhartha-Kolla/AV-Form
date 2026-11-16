@@ -125,7 +125,7 @@ export function aktualisiereAnmeldung(
     if (!zeile) return null;
     if (optionen.erwarteteRevision !== undefined && zeile.revision !== optionen.erwarteteRevision) {
       throw new FachFehler(
-        "Diese Anmeldung wurde inzwischen geändert. Bitte lade die Seite neu, damit nichts überschrieben wird.",
+        "Diese Anmeldung wurde inzwischen geändert. Die Seite bitte neu laden, damit nichts überschrieben wird.",
       );
     }
     const felder = geaenderteFelder(zuAnmeldung(zeile).values, values);

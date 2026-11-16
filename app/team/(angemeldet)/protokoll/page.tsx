@@ -28,6 +28,8 @@ const DETAIL_NAMEN: Record<string, string> = {
   status: "Entscheidung",
   vorher: "Vorher",
   mitNachricht: "Mit Nachricht",
+  versand: "Versand",
+  grund: "Grund",
 };
 
 function detailText(z: ProtokollZeile): string {

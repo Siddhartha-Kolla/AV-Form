@@ -1,18 +1,50 @@
 import type { FormValues } from "@/lib/registration";
 
-export type SubmitResult = { ok: true } | { ok: false; message: string };
+export type MailStand = "gesendet" | "nicht_konfiguriert" | "fehlgeschlagen";
+
+export type SubmitResult =
+  | { ok: true; mail: MailStand }
+  | { ok: false; message: string | null; fehler: Record<string, string>; dateiFehler: string[] };
 
 /**
- * Platzhalter. Speichert noch nichts.
- * Wird in Schritt 4 des Plans durch eine Server Action ersetzt, die validiert,
- * verschlüsselt, in SQLite schreibt und den privaten Link per E-Mail verschickt.
+ * Schickt die Anmeldung an den Server. Als normale Anfrage mit Dateien, weil Server Actions bei Dateien auf 1 MB
+ * begrenzt sind. "gestartet" und "webseite" sind für den Schutz vor Programmen gedacht, siehe app/anmeldung/senden.
  */
 export async function sendeAnmeldung(
-  ...args: [values: FormValues, files: File[]]
+  values: FormValues,
+  files: File[],
+  schutz: { gestartet: number; webseite: string },
 ): Promise<SubmitResult> {
-  void args;
-  await new Promise((resolve) => setTimeout(resolve, 700));
-  return { ok: true };
+  const daten = new FormData();
+  daten.set("daten", JSON.stringify(values));
+  daten.set("gestartet", String(schutz.gestartet));
+  daten.set("webseite", schutz.webseite);
+  for (const f of files) daten.append("dateien", f);
+
+  try {
+    const antwort = await fetch("/anmeldung/senden", { method: "POST", body: daten });
+    const ergebnis = (await antwort.json()) as {
+      ok: boolean;
+      mail?: MailStand;
+      meldung?: string;
+      fehler?: Record<string, string>;
+      dateiFehler?: string[];
+    };
+    if (ergebnis.ok) return { ok: true, mail: ergebnis.mail ?? "gesendet" };
+    return {
+      ok: false,
+      message: ergebnis.meldung ?? null,
+      fehler: ergebnis.fehler ?? {},
+      dateiFehler: ergebnis.dateiFehler ?? [],
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Keine Verbindung zum Server. Ihre Angaben sind noch da. Bitte versuchen Sie es noch einmal.",
+      fehler: {},
+      dateiFehler: [],
+    };
+  }
 }
 
 export function datumLang(iso: string): string {

@@ -15,7 +15,9 @@ async function BearbeitenInhalt({ params }: { params: Promise<{ id: string }> })
 
   return (
     <AnmeldungBearbeiten
-      id={geladen.anmeldung.id}
+      modus="team"
+      speichernUrl={`/team/anmeldungen/${geladen.anmeldung.id}/speichern`}
+      zurueck={`/team/anmeldungen/${geladen.anmeldung.id}`}
       revision={geladen.anmeldung.revision}
       start={geladen.anmeldung.values}
       dateien={geladen.dateien}

@@ -102,3 +102,19 @@ export function entferneDateienVonDisk(anmeldungId: string): void {
   const ids = db().prepare("SELECT id FROM dateien WHERE anmeldung_id = ?").all(anmeldungId) as { id: string }[];
   for (const { id } of ids) fs.rmSync(pfad(id), { force: true });
 }
+
+/**
+ * Prüft neue Dateien vorab, ohne etwas zu speichern. "vorhanden" ist die Zahl der Dateien, die danach schon da sind.
+ * Gibt die Meldungen zurück, leer wenn alles passt. Gespeichert wird erst, wenn alle Dateien in Ordnung sind.
+ */
+export function pruefeUpload(neue: { name: string; inhalt: Buffer }[], vorhanden = 0): string[] {
+  const meldungen: string[] = [];
+  for (const d of neue) {
+    const endung = sauberer(d.name).split(".").pop()?.toLowerCase() ?? "";
+    if (!ERLAUBTE_ENDUNGEN.includes(endung)) meldungen.push(`${d.name}: Dieser Dateityp wird nicht angenommen.`);
+    else if (d.inhalt.length === 0) meldungen.push(`${d.name}: Die Datei ist leer.`);
+    else if (d.inhalt.length > MAX_DATEI_MB * 1024 * 1024) meldungen.push(`${d.name}: Die Datei ist größer als ${MAX_DATEI_MB} MB.`);
+  }
+  if (vorhanden + neue.length > MAX_DATEIEN) meldungen.push(`Es sind höchstens ${MAX_DATEIEN} Dateien möglich.`);
+  return meldungen;
+}

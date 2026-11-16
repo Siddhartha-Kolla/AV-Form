@@ -10,7 +10,8 @@ import { db } from "../db.ts";
 */
 
 export const FENSTER_MINUTEN = 15;
-const LIMITS = { benutzer: 5, ip: 25 } as const;
+// "einreichung_*" bremst das öffentliche Formular: je IP-Adresse und insgesamt, jeweils pro Zeitfenster.
+const LIMITS = { benutzer: 5, ip: 25, einreichung_ip: 6, einreichung_alle: 40 } as const;
 
 export type Versuchsschluessel = { art: keyof typeof LIMITS; wert: string };
 
@@ -20,6 +21,11 @@ function schluessel(s: Versuchsschluessel): string {
 
 function fensterStart(jetzt: Date): string {
   return new Date(jetzt.getTime() - FENSTER_MINUTEN * 60_000).toISOString();
+}
+
+/** Zählt einen Versuch, auch einen erfolgreichen. Gedacht für Einreichungen, die nicht scheitern müssen, um gezählt zu werden. */
+export function registriereVersuch(schluesselListe: Versuchsschluessel[], jetzt: Date = new Date()): void {
+  registriereFehlversuch(schluesselListe, jetzt);
 }
 
 export function istGedrosselt(schluesselListe: Versuchsschluessel[], jetzt: Date = new Date()): boolean {
