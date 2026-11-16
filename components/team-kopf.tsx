@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, ChevronDown, LogOut, ScrollText, User, Users } from "lucide-react";
+import { kuerzel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type NavSymbol = "anmeldungen" | "mitglieder" | "protokoll";
@@ -26,14 +27,6 @@ function istAktiv(pfad: string, e: NavEintrag): boolean {
     (!e.exakt && pfad.startsWith(`${e.href}/`)) ||
     (e.auchBei ?? []).some((p) => pfad === p || pfad.startsWith(`${p}/`))
   );
-}
-
-function kuerzel(name: string): string {
-  const teile = name.trim().split(/\s+/).filter(Boolean);
-  if (teile.length === 0) return "?";
-  const erster = teile[0][0] ?? "";
-  const letzter = teile.length > 1 ? teile[teile.length - 1][0] : "";
-  return (erster + letzter).toUpperCase();
 }
 
 /**

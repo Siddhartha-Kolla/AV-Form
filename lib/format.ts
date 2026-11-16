@@ -124,3 +124,13 @@ export function datumTeile(iso: string): { tag: string; wochentag: string; monat
   const hole = (typ: string) => teile.find((t) => t.type === typ)?.value ?? "";
   return { tag: hole("day"), wochentag: hole("weekday"), monat: hole("month") };
 }
+
+/** Anfangsbuchstaben für ein Namensschild, zum Beispiel "MB" für "Mia Becker". */
+export function kuerzel(name: string): string {
+  const teile = name.trim().split(/\s+/).filter(Boolean);
+  if (teile.length === 0) return "?";
+  const erster = teile[0][0] ?? "";
+  const letzter = teile.length > 1 ? teile[teile.length - 1][0] : "";
+  return (erster + letzter).toUpperCase();
+}
+

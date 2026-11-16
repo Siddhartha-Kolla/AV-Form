@@ -27,6 +27,8 @@ export type MitgliedAnsicht = {
   gesperrt: boolean;
   mussPasswortAendern: boolean;
   sitzungen: number;
+  /** Fertig formatiert, zum Beispiel "12.11.2026, 09:15". Leer, wenn es noch keine Anmeldung gab. */
+  letzteAnmeldung: string | null;
 };
 
 /* Bausteine -------------------------------------------------------------- */
@@ -97,6 +99,21 @@ function PasswortWahl({ idPrefix }: { idPrefix: string }) {
   );
 }
 
+/** Rollenauswahl, die darunter sagt, was die gewählte Rolle darf. */
+function RollenWahl({ id, name, defaultValue }: { id: string; name?: string; defaultValue: string }) {
+  const [rolle, setRolle] = useState(defaultValue);
+  const beschreibung = ROLLEN[rolle as keyof typeof ROLLEN]?.beschreibung;
+  return (
+    <SelectField id={id} name={name} label="Rolle" value={rolle} onChange={(e) => setRolle(e.target.value)} hint={beschreibung}>
+      {VERGEBBARE_ROLLEN.map((r) => (
+        <option key={r} value={r}>
+          {ROLLEN[r].name}
+        </option>
+      ))}
+    </SelectField>
+  );
+}
+
 /* Mitglied anlegen -------------------------------------------------------- */
 
 export function MitgliedAnlegen() {
@@ -122,13 +139,7 @@ export function MitgliedAnlegen() {
             <TextField id="benutzername" label="Benutzername" required autoComplete="off" autoCapitalize="none" spellCheck={false} hint="Kleinbuchstaben, Ziffern, Punkt, Bindestrich." />
           </div>
           <TextField id="email" label="E-Mail (optional)" type="email" autoComplete="off" />
-          <SelectField id="rolle" label="Rolle" defaultValue="mitglied">
-            {VERGEBBARE_ROLLEN.map((r) => (
-              <option key={r} value={r}>
-                {ROLLEN[r].name}
-              </option>
-            ))}
-          </SelectField>
+          <RollenWahl id="rolle" defaultValue="mitglied" />
           <PasswortWahl idPrefix="neu" />
           <div className="flex flex-wrap items-center gap-4">
             <Absenden laeuft={laeuft}>Anlegen</Absenden>
@@ -144,10 +155,26 @@ export function MitgliedAnlegen() {
 
 function Abschnitt({ titel, children }: { titel: string; children: ReactNode }) {
   return (
-    <section className="border-t border-border pt-5 first:border-t-0 first:pt-0">
-      <h3 className="mb-3 text-[15px] font-semibold">{titel}</h3>
+    <section className="border-t border-border pt-6 first:border-t-0 first:pt-0">
+      <h3 className="mb-4 text-[15px] font-semibold">{titel}</h3>
       {children}
     </section>
+  );
+}
+
+/** Eine einzelne Handlung: links, was sie bewirkt, rechts der Knopf. Auf dem Handy untereinander. */
+function Handlung({ titel, text, knopf, children }: { titel: string; text: ReactNode; knopf: ReactNode; children?: ReactNode }) {
+  return (
+    <div>
+      <div className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div>
+          <p className="text-[15px] font-medium">{titel}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{text}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">{knopf}</div>
+      </div>
+      {children && <div className="mt-2">{children}</div>}
+    </div>
   );
 }
 
@@ -160,8 +187,8 @@ export function MitgliedVerwalten({ m }: { m: MitgliedAnsicht }) {
   const [sicher, setSicher] = useState(false);
 
   return (
-    <Dialog titel={m.anzeigename} beschreibung={`@${m.benutzername}`} knopf="Verwalten">
-      <div className="space-y-6">
+    <Dialog titel={m.anzeigename} beschreibung={`@${m.benutzername} · ${m.letzteAnmeldung ? `zuletzt angemeldet ${m.letzteAnmeldung}` : "noch nie angemeldet"}`} knopf="Verwalten">
+      <div className="space-y-7">
         <Abschnitt titel="Daten">
           <form action={datenAktion} className="space-y-4">
             <input type="hidden" name="id" value={m.id} />
@@ -169,15 +196,9 @@ export function MitgliedVerwalten({ m }: { m: MitgliedAnsicht }) {
               <TextField id={`name-${m.id}`} name="anzeigename" label="Name" required defaultValue={m.anzeigename} />
               <TextField id={`email-${m.id}`} name="email" label="E-Mail (optional)" type="email" defaultValue={m.email} />
             </div>
-            <SelectField id={`rolle-${m.id}`} name="rolle" label="Rolle" defaultValue={m.rolle}>
-              {VERGEBBARE_ROLLEN.map((r) => (
-                <option key={r} value={r}>
-                  {ROLLEN[r].name}
-                </option>
-              ))}
-            </SelectField>
+            <RollenWahl id={`rolle-${m.id}`} name="rolle" defaultValue={m.rolle} />
             <div className="flex flex-wrap items-center gap-4">
-              <Absenden laeuft={datenLaeuft} variante="outline">Speichern</Absenden>
+              <Absenden laeuft={datenLaeuft}>Speichern</Absenden>
               <Rueckmeldung zustand={daten} />
             </div>
           </form>
@@ -192,7 +213,7 @@ export function MitgliedVerwalten({ m }: { m: MitgliedAnsicht }) {
               <input type="hidden" name="benutzername" value={m.benutzername} />
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Alle Sitzungen enden sofort. Beim nächsten Login wählt {m.anzeigename} ein eigenes Passwort.
-                {m.mussPasswortAendern && " Das Startpasswort ist noch nicht geändert worden."}
+                {m.mussPasswortAendern && " Das jetzige Startpasswort ist noch nicht geändert worden."}
               </p>
               <PasswortWahl idPrefix={`reset-${m.id}`} />
               <div className="flex flex-wrap items-center gap-4">
@@ -204,23 +225,35 @@ export function MitgliedVerwalten({ m }: { m: MitgliedAnsicht }) {
         </Abschnitt>
 
         <Abschnitt titel="Zugang">
-          <div className="space-y-4">
-            <form action={statusAk} className="flex flex-wrap items-center gap-4">
+          <div className="space-y-5">
+            <form action={statusAk}>
               <input type="hidden" name="id" value={m.id} />
               <input type="hidden" name="status" value={m.gesperrt ? "aktiv" : "gesperrt"} />
-              <Absenden laeuft={statusLaeuft} variante="outline">{m.gesperrt ? "Konto freigeben" : "Konto sperren"}</Absenden>
-              <p className="text-sm text-muted-foreground">
-                {m.gesperrt ? "Das Konto ist gesperrt." : "Gesperrte Konten können sich nicht anmelden."}
-              </p>
-              <Rueckmeldung zustand={status} />
+              <Handlung
+                titel={m.gesperrt ? "Das Konto ist gesperrt" : "Konto sperren"}
+                text={
+                  m.gesperrt
+                    ? `${m.anzeigename} kann sich nicht anmelden, bis du das Konto freigibst.`
+                    : "Gesperrte Konten können sich nicht anmelden."
+                }
+                knopf={<Absenden laeuft={statusLaeuft} variante="outline">{m.gesperrt ? "Konto freigeben" : "Konto sperren"}</Absenden>}
+              >
+                <Rueckmeldung zustand={status} />
+              </Handlung>
             </form>
-            <form action={sitzungenAktion} className="flex flex-wrap items-center gap-4">
+            <form action={sitzungenAktion}>
               <input type="hidden" name="id" value={m.id} />
-              <Absenden laeuft={sitzungenLaeuft} variante="outline">Alle Sitzungen beenden</Absenden>
-              <p className="text-sm text-muted-foreground">
-                {m.sitzungen === 0 ? "Zurzeit angemeldet: keine Sitzung." : `Zurzeit angemeldet: ${m.sitzungen} Sitzung${m.sitzungen === 1 ? "" : "en"}.`}
-              </p>
-              <Rueckmeldung zustand={sitzungen} />
+              <Handlung
+                titel="Sitzungen beenden"
+                text={
+                  m.sitzungen === 0
+                    ? "Zurzeit ist keine Sitzung angemeldet."
+                    : `Zurzeit angemeldet: ${m.sitzungen} Sitzung${m.sitzungen === 1 ? "" : "en"}.`
+                }
+                knopf={<Absenden laeuft={sitzungenLaeuft} variante="outline">Alle beenden</Absenden>}
+              >
+                <Rueckmeldung zustand={sitzungen} />
+              </Handlung>
             </form>
           </div>
         </Abschnitt>
@@ -229,24 +262,33 @@ export function MitgliedVerwalten({ m }: { m: MitgliedAnsicht }) {
           {loeschen.ok ? (
             <Rueckmeldung zustand={loeschen} />
           ) : (
-            <form action={loeschenAktion} className="space-y-3">
+            <form action={loeschenAktion}>
               <input type="hidden" name="id" value={m.id} />
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Das Konto und alle seine Sitzungen werden entfernt. Das Protokoll behält die Einträge, auch mit dem Namen.
-              </p>
-              {sicher ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <Absenden laeuft={loeschenLaeuft} variante="destructive">Ja, {m.anzeigename} löschen</Absenden>
-                  <Button type="button" variant="ghost" className="h-10 px-3" onClick={() => setSicher(false)}>
-                    Abbrechen
-                  </Button>
-                </div>
-              ) : (
-                <Button type="button" variant="outline" className="h-10 border-destructive/40 bg-surface px-4 text-destructive shadow-none hover:bg-destructive/10" onClick={() => setSicher(true)}>
-                  Mitglied löschen
-                </Button>
-              )}
-              <Rueckmeldung zustand={loeschen} />
+              <Handlung
+                titel="Mitglied löschen"
+                text="Das Konto und alle seine Sitzungen werden entfernt. Das Protokoll behält die Einträge, auch mit dem Namen."
+                knopf={
+                  sicher ? (
+                    <>
+                      <Absenden laeuft={loeschenLaeuft} variante="destructive">Ja, löschen</Absenden>
+                      <Button type="button" variant="ghost" className="h-10 px-3" onClick={() => setSicher(false)}>
+                        Abbrechen
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 border-destructive/40 bg-surface px-4 text-[15px] text-destructive shadow-none hover:bg-destructive/10"
+                      onClick={() => setSicher(true)}
+                    >
+                      Mitglied löschen
+                    </Button>
+                  )
+                }
+              >
+                <Rueckmeldung zustand={loeschen} />
+              </Handlung>
             </form>
           )}
         </Abschnitt>
