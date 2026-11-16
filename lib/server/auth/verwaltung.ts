@@ -1,5 +1,5 @@
 import "server-only";
-import { darf, istRolle, VERGEBBARE_ROLLEN, type Berechtigung, type RolleId } from "../../berechtigungen.ts";
+import { darf, darfKontoVerwalten, istRolle, vergebbareRollen, type Berechtigung, type RolleId } from "../../berechtigungen.ts";
 import { FachFehler, type Kontext } from "./fehler.ts";
 import { passwortAnbieter } from "./anbieter-passwort.ts";
 import {
@@ -35,9 +35,17 @@ function ziel(konto: Konto) {
   return { typ: "konto", id: konto.id, name: konto.anzeigename };
 }
 
-function holeMitglied(id: string): Konto {
+/** Lädt das Konto und prüft, dass der Akteur es verwalten darf. Admins verwalten keine Admins. */
+function holeMitglied(akteur: Konto, id: string): Konto {
   const konto = findeKonto(id);
   if (!konto) throw new FachFehler("Dieses Mitglied gibt es nicht mehr.");
+  if (!darfKontoVerwalten(akteur.rolle, konto.rolle)) {
+    throw new FachFehler(
+      konto.rolle === "superuser"
+        ? "Der Superuser lässt sich hier nicht ändern. Dafür gibt es die Kommandozeile auf dem Server."
+        : "Dieses Konto darf nur der Superuser verwalten.",
+    );
+  }
   return konto;
 }
 
@@ -47,7 +55,7 @@ export async function legeMitgliedAn(
   kontext: Kontext,
 ): Promise<{ konto: Konto; startpasswort: string | null }> {
   verlange(akteur, "team.verwalten");
-  if (!istRolle(eingabe.rolle) || !VERGEBBARE_ROLLEN.includes(eingabe.rolle)) {
+  if (!istRolle(eingabe.rolle) || !vergebbareRollen(akteur.rolle).includes(eingabe.rolle)) {
     throw new FachFehler("Diese Rolle lässt sich nicht vergeben.");
   }
   const erzeugt = !eingabe.passwort?.trim();
@@ -74,7 +82,10 @@ export function aendereMitglied(
   kontext: Kontext,
 ): Konto {
   verlange(akteur, "team.verwalten");
-  const vorher = holeMitglied(id);
+  const vorher = holeMitglied(akteur, id);
+  if (eingabe.rolle !== vorher.rolle && !(istRolle(eingabe.rolle) && vergebbareRollen(akteur.rolle).includes(eingabe.rolle))) {
+    throw new FachFehler("Diese Rolle lässt sich nicht vergeben.");
+  }
   const felder: string[] = [];
   let konto = vorher;
   if (eingabe.anzeigename.trim() !== vorher.anzeigename || (eingabe.email ?? "").trim() !== vorher.email) {
@@ -102,6 +113,7 @@ export function aendereMitglied(
 
 export function setzeMitgliedStatus(akteur: Konto, id: string, status: "aktiv" | "gesperrt", kontext: Kontext): Konto {
   verlange(akteur, "team.verwalten");
+  holeMitglied(akteur, id);
   const konto = setzeStatus(id, status);
   if (status === "gesperrt") beendeAlleSitzungen(id);
   protokolliere(
@@ -123,7 +135,7 @@ export async function setzeMitgliedPasswortZurueck(
   kontext: Kontext,
 ): Promise<{ startpasswort: string | null }> {
   verlange(akteur, "team.verwalten");
-  const konto = holeMitglied(id);
+  const konto = holeMitglied(akteur, id);
   if (konto.rolle === "superuser") {
     throw new FachFehler("Das Passwort des Superusers lässt sich nur über die Kommandozeile auf dem Server zurücksetzen.");
   }
@@ -145,7 +157,7 @@ export async function setzeMitgliedPasswortZurueck(
 
 export function beendeMitgliedSitzungen(akteur: Konto, id: string, kontext: Kontext): number {
   verlange(akteur, "team.verwalten");
-  const konto = holeMitglied(id);
+  const konto = holeMitglied(akteur, id);
   const anzahl = beendeAlleSitzungen(id);
   protokolliere(
     { ereignis: "sitzungen.beendet", akteur: { id: akteur.id, name: akteur.anzeigename }, ziel: ziel(konto), details: { anzahl } },
@@ -157,6 +169,7 @@ export function beendeMitgliedSitzungen(akteur: Konto, id: string, kontext: Kont
 export function loescheMitglied(akteur: Konto, id: string, kontext: Kontext): void {
   verlange(akteur, "team.verwalten");
   if (akteur.id === id) throw new FachFehler("Das eigene Konto lässt sich nicht löschen.");
+  holeMitglied(akteur, id);
   const konto = loescheKonto(id);
   protokolliere(
     { ereignis: "konto.geloescht", akteur: { id: akteur.id, name: akteur.anzeigename }, ziel: ziel(konto), details: { benutzername: konto.benutzername } },

@@ -20,7 +20,7 @@ const verw = await import("../lib/server/auth/verwaltung.ts");
 const prot = await import("../lib/server/auth/protokoll.ts");
 const { registriereAnbieter, holeAnbieter } = await import("../lib/server/auth/anbieter.ts");
 const { FachFehler } = await import("../lib/server/auth/fehler.ts");
-const { darf } = await import("../lib/berechtigungen.ts");
+const { darf, BERECHTIGUNGEN, vergebbareRollen } = await import("../lib/berechtigungen.ts");
 
 const kontext = { ip: "203.0.113.7", geraet: "Testbrowser" };
 const SUPER_PW = "ein-sehr-langes-passwort-1";
@@ -322,5 +322,48 @@ describe("Protokoll und Datenschutz", () => {
     const geloescht = prot.loescheAltesProtokoll(new Date(Date.now() + 400 * 86_400_000));
     assert.equal(geloescht, vorher);
     assert.equal(prot.listeProtokoll({}).zeilen.length, 0);
+  });
+});
+
+describe("Admin", () => {
+  it("hat alle Berechtigungen außer dem Protokoll", () => {
+    for (const b of BERECHTIGUNGEN) assert.equal(darf("admin", b), b !== "protokoll.lesen", b);
+    assert.deepEqual(vergebbareRollen("superuser"), ["admin", "mitglied"]);
+    assert.deepEqual(vergebbareRollen("admin"), ["mitglied"]);
+    assert.deepEqual(vergebbareRollen("mitglied"), []);
+  });
+
+  it("wird nur vom Superuser angelegt und verwaltet Mitglieder, aber keine Admins", async () => {
+    const chef = konten.findeKontoNachBenutzername("chef")!;
+    const { konto: ada } = await verw.legeMitgliedAn(chef, { benutzername: "ada.admin", anzeigename: "Ada Admin", rolle: "admin" }, kontext);
+    const { konto: bob } = await verw.legeMitgliedAn(chef, { benutzername: "bob.admin", anzeigename: "Bob Admin", rolle: "admin" }, kontext);
+    assert.equal(ada.rolle, "admin");
+
+    // Der Admin legt Mitglieder an und verwaltet sie, aber legt keine Admins an.
+    const { konto: nele } = await verw.legeMitgliedAn(ada, { benutzername: "nele", anzeigename: "Nele", rolle: "mitglied" }, kontext);
+    await assert.rejects(verw.legeMitgliedAn(ada, { benutzername: "cem.admin", anzeigename: "Cem", rolle: "admin" }, kontext), /Rolle/);
+    verw.aendereMitglied(ada, nele.id, { anzeigename: "Nele Neu", rolle: "mitglied" }, kontext);
+    assert.equal(konten.findeKonto(nele.id)!.anzeigename, "Nele Neu");
+    assert.equal(verw.setzeMitgliedStatus(ada, nele.id, "gesperrt", kontext).status, "gesperrt");
+    verw.setzeMitgliedStatus(ada, nele.id, "aktiv", kontext);
+    assert.ok((await verw.setzeMitgliedPasswortZurueck(ada, nele.id, undefined, kontext)).startpasswort);
+    verw.beendeMitgliedSitzungen(ada, nele.id, kontext);
+    // Ein Admin kann ein Mitglied nicht zum Admin machen.
+    assert.throws(() => verw.aendereMitglied(ada, nele.id, { anzeigename: "Nele Neu", rolle: "admin" }, kontext), /Rolle/);
+
+    // Admins und der Superuser sind für den Admin tabu, auch das eigene Konto.
+    for (const ziel of [bob, ada, chef]) {
+      assert.throws(() => verw.setzeMitgliedStatus(ada, ziel.id, "gesperrt", kontext), FachFehler);
+      assert.throws(() => verw.aendereMitglied(ada, ziel.id, { anzeigename: "X", rolle: "mitglied" }, kontext), FachFehler);
+      assert.throws(() => verw.beendeMitgliedSitzungen(ada, ziel.id, kontext), FachFehler);
+      assert.throws(() => verw.loescheMitglied(ada, ziel.id, kontext), FachFehler);
+      await assert.rejects(verw.setzeMitgliedPasswortZurueck(ada, ziel.id, undefined, kontext), FachFehler);
+    }
+    assert.equal(konten.findeKonto(bob.id)!.rolle, "admin");
+
+    // Der Superuser darf Admins verwalten.
+    verw.aendereMitglied(chef, bob.id, { anzeigename: "Bob Admin", rolle: "mitglied" }, kontext);
+    assert.equal(konten.findeKonto(bob.id)!.rolle, "mitglied");
+    verw.loescheMitglied(chef, ada.id, kontext);
   });
 });

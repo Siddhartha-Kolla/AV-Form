@@ -1,7 +1,7 @@
 import { Laden } from "@/components/laden";
 import { Suspense } from "react";
 import { Lock } from "lucide-react";
-import { ROLLEN } from "@/lib/berechtigungen";
+import { darfKontoVerwalten, ROLLEN, vergebbareRollen } from "@/lib/berechtigungen";
 import { datumZeit, kuerzel } from "@/lib/format";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
 import { listeKonten, type Konto } from "@/lib/server/auth/konten";
@@ -34,6 +34,7 @@ function Zustand({ m }: { m: Konto }) {
 async function MitgliederInhalt() {
   const { konto } = await verlangeSitzung({ berechtigung: "team.verwalten" });
   const mitglieder = listeKonten();
+  const rollen = vergebbareRollen(konto.rolle);
   const gesperrt = mitglieder.filter((m) => m.status === "gesperrt").length;
 
   return (
@@ -46,7 +47,7 @@ async function MitgliederInhalt() {
             Protokoll.
           </p>
         </div>
-        <MitgliedAnlegen />
+        <MitgliedAnlegen rollen={rollen} />
       </div>
 
       <p className="mb-2 text-sm text-muted-foreground">
@@ -67,7 +68,7 @@ async function MitgliederInhalt() {
         </div>
         <ul className="divide-y divide-border border-b border-border">
           {mitglieder.map((m) => {
-            const istSuperuser = m.rolle === "superuser";
+            const verwaltbar = darfKontoVerwalten(konto.rolle, m.rolle) && m.rolle !== "superuser";
             return (
               <li
                 key={m.id}
@@ -111,13 +112,16 @@ async function MitgliederInhalt() {
                 </p>
 
                 <div className="col-start-2 row-start-1 justify-self-end sm:col-start-auto sm:row-start-auto">
-                  {istSuperuser ? (
+                  {!verwaltbar ? (
                     <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <Lock className="size-3.5 shrink-0" aria-hidden="true" />
-                      <span className="whitespace-nowrap max-sm:sr-only">Nur per Kommandozeile</span>
+                      <span className="whitespace-nowrap max-sm:sr-only">
+                        {m.rolle === "superuser" ? "Nur per Kommandozeile" : m.id === konto.id ? "Eigenes Konto" : "Nur der Superuser"}
+                      </span>
                     </span>
                   ) : (
                     <MitgliedVerwalten
+                      rollen={rollen}
                       m={{
                         id: m.id,
                         benutzername: m.benutzername,

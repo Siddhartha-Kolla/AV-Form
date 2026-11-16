@@ -7,7 +7,7 @@ import { Dialog } from "@/components/dialog";
 import { SelectField, TextField } from "@/components/fields";
 import { Startpasswort } from "@/components/startpasswort";
 import { cn } from "@/lib/utils";
-import { ROLLEN, VERGEBBARE_ROLLEN } from "@/lib/berechtigungen";
+import { ROLLEN, type RolleId } from "@/lib/berechtigungen";
 import {
   aendernAktion,
   anlegenAktion,
@@ -100,12 +100,12 @@ function PasswortWahl({ idPrefix }: { idPrefix: string }) {
 }
 
 /** Rollenauswahl, die darunter sagt, was die gewählte Rolle darf. */
-function RollenWahl({ id, name, defaultValue }: { id: string; name?: string; defaultValue: string }) {
+function RollenWahl({ id, name, defaultValue, rollen }: { id: string; name?: string; defaultValue: string; rollen: RolleId[] }) {
   const [rolle, setRolle] = useState(defaultValue);
   const beschreibung = ROLLEN[rolle as keyof typeof ROLLEN]?.beschreibung;
   return (
     <SelectField id={id} name={name} label="Rolle" value={rolle} onChange={(e) => setRolle(e.target.value)} hint={beschreibung}>
-      {VERGEBBARE_ROLLEN.map((r) => (
+      {rollen.map((r) => (
         <option key={r} value={r}>
           {ROLLEN[r].name}
         </option>
@@ -116,7 +116,7 @@ function RollenWahl({ id, name, defaultValue }: { id: string; name?: string; def
 
 /* Mitglied anlegen -------------------------------------------------------- */
 
-export function MitgliedAnlegen() {
+export function MitgliedAnlegen({ rollen }: { rollen: RolleId[] }) {
   const [zustand, aktion, laeuft] = useActionState<Zustand, FormData>(anlegenAktion, {});
   const [version, setVersion] = useState(0);
 
@@ -139,7 +139,7 @@ export function MitgliedAnlegen() {
             <TextField id="benutzername" label="Benutzername" required autoComplete="off" autoCapitalize="none" spellCheck={false} hint="Kleinbuchstaben, Ziffern, Punkt, Bindestrich." />
           </div>
           <TextField id="email" label="E-Mail (optional)" type="email" autoComplete="off" />
-          <RollenWahl id="rolle" defaultValue="mitglied" />
+          <RollenWahl id="rolle" rollen={rollen} defaultValue={rollen.includes("mitglied") ? "mitglied" : rollen[0]} />
           <PasswortWahl idPrefix="neu" />
           <div className="flex flex-wrap items-center gap-4">
             <Absenden laeuft={laeuft}>Anlegen</Absenden>
@@ -178,7 +178,7 @@ function Handlung({ titel, text, knopf, children }: { titel: string; text: React
   );
 }
 
-export function MitgliedVerwalten({ m }: { m: MitgliedAnsicht }) {
+export function MitgliedVerwalten({ m, rollen }: { m: MitgliedAnsicht; rollen: RolleId[] }) {
   const [daten, datenAktion, datenLaeuft] = useActionState<Zustand, FormData>(aendernAktion, {});
   const [reset, resetAktion, resetLaeuft] = useActionState<Zustand, FormData>(zuruecksetzenAktion, {});
   const [status, statusAk, statusLaeuft] = useActionState<Zustand, FormData>(statusAktion, {});
@@ -196,7 +196,7 @@ export function MitgliedVerwalten({ m }: { m: MitgliedAnsicht }) {
               <TextField id={`name-${m.id}`} name="anzeigename" label="Name" required defaultValue={m.anzeigename} />
               <TextField id={`email-${m.id}`} name="email" label="E-Mail (optional)" type="email" defaultValue={m.email} />
             </div>
-            <RollenWahl id={`rolle-${m.id}`} name="rolle" defaultValue={m.rolle} />
+            <RollenWahl id={`rolle-${m.id}`} name="rolle" rollen={rollen} defaultValue={m.rolle} />
             <div className="flex flex-wrap items-center gap-4">
               <Absenden laeuft={datenLaeuft}>Speichern</Absenden>
               <Rueckmeldung zustand={daten} />
