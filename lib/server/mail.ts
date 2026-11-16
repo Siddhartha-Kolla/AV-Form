@@ -15,7 +15,7 @@ import { smtpEinstellungen } from "./config.ts";
 
 export type MailErgebnis = "gesendet" | "nicht_konfiguriert" | "fehlgeschlagen";
 
-export type Mail = { an: string; betreff: string; text: string };
+export type Mail = { an: string; betreff: string; text: string; html?: string };
 
 const global = globalThis as unknown as { __technikMail?: { schluessel: string; transport: nodemailer.Transporter } };
 
@@ -67,6 +67,7 @@ export async function sendeMailMitGrund(mail: Mail): Promise<{ ergebnis: MailErg
       to: einzeilig(mail.an),
       subject: einzeilig(mail.betreff),
       text: mail.text,
+      html: mail.html,
     });
     return { ergebnis: "gesendet", grund: null };
   } catch (fehler) {

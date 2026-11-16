@@ -12,6 +12,7 @@ import {
   type StatusId,
 } from "@/lib/entscheidung";
 import { cn } from "@/lib/utils";
+import type { MailErgebnis } from "@/lib/server/mail";
 import { anmeldungEntscheidenAktion } from "./actions";
 
 const SYMBOL = { angenommen: Check, rueckfrage: MessageCircleQuestion, abgelehnt: X } as const;
@@ -82,6 +83,7 @@ function Formular({
   const [nachricht, setNachricht] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, starte] = useTransition();
+  const [mail, setMail] = useState<MailErgebnis | null>(null);
 
   function senden(e: React.FormEvent) {
     e.preventDefault();
@@ -92,10 +94,12 @@ function Formular({
     setFehler(null);
     starte(async () => {
       const antwort = await anmeldungEntscheidenAktion({ id, status: wahl, erwarteterStatus: status, nachricht });
-      if (antwort.ok) schliessen();
+      if (antwort.ok) setMail(antwort.mail);
       else setFehler(antwort.meldung);
     });
   }
+
+  if (mail) return <Ergebnis mail={mail} schliessen={schliessen} />;
 
   return (
     <form onSubmit={senden} noValidate className="p-5 sm:p-7">
@@ -129,7 +133,7 @@ function Formular({
         disabled={laeuft}
       />
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-        Die Nachricht steht im Verlauf. Danach kannst du sie mit einem Klick als E-Mail an die Lehrkraft öffnen.
+        Die Lehrkraft bekommt die Entscheidung samt Nachricht per E-Mail. Sie steht außerdem im Verlauf.
       </p>
 
       {fehler && !(text.pflicht && !nachricht.trim()) && (
@@ -148,5 +152,28 @@ function Formular({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Nach dem Speichern: was mit der Mail an die Lehrkraft geschehen ist. */
+function Ergebnis({ mail, schliessen }: { mail: MailErgebnis; schliessen: () => void }) {
+  const gesendet = mail === "gesendet";
+  return (
+    <div className="p-5 sm:p-7">
+      <h2 id="entscheidung-titel" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <Check className="size-5 text-primary" aria-hidden="true" />
+        Gespeichert
+      </h2>
+      <p role="status" className="mt-2 text-[15px] leading-relaxed">
+        {gesendet
+          ? "Die Lehrkraft wurde per E-Mail benachrichtigt."
+          : "Die E-Mail an die Lehrkraft ließ sich nicht verschicken. Unter der Entscheidung kannst du sie selbst vorbereiten."}
+      </p>
+      <div className="mt-6 flex justify-end">
+        <Button type="button" onClick={schliessen} autoFocus className="h-10 px-5 text-[15px]">
+          Fertig
+        </Button>
+      </div>
+    </div>
   );
 }

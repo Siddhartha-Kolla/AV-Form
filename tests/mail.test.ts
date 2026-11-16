@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const { sendeMail } = await import("../lib/server/mail.ts");
 const { smtpEinstellungen, teamAdressen, appUrl } = await import("../lib/server/config.ts");
+const vorlagen = await import("../lib/mail-vorlagen.ts");
 
 const mail = { an: "a@schule.example", betreff: "Test", text: "Hallo" };
 
@@ -55,5 +56,55 @@ describe("E-Mail", () => {
     assert.equal(appUrl(), "https://technik.schule.example");
     delete process.env.APP_URL;
     assert.equal(appUrl(), null, "im Betrieb ohne APP_URL gibt es keine Links");
+  });
+});
+
+describe("Mailvorlagen", () => {
+  const termin = { titel: "Elternabend", datum: "2099-05-04", beginn: "19:00", ende: "21:00", ort: "Mensa" };
+
+  it("nennen in jeder Entscheidung Titel, Termin und die Nachricht des Teams", () => {
+    for (const status of ["angenommen", "rueckfrage", "abgelehnt"] as const) {
+      const m = vorlagen.mailEntscheidung({ lehrkraft: "Frau Test", termin, status, nachricht: "Bitte den Ablauf senden.", absender: "Mia" });
+      for (const teil of ["Elternabend", "19:00", "Mensa", "Bitte den Ablauf senden.", "Frau Test"]) {
+        assert.ok(m.text.includes(teil), `${status} Text: ${teil}`);
+        assert.ok(m.html.includes(teil), `${status} HTML: ${teil}`);
+      }
+      assert.ok(m.betreff.includes("Elternabend"));
+    }
+    const ohne = vorlagen.mailEntscheidung({ lehrkraft: "F", termin, status: "angenommen", nachricht: null, absender: null });
+    assert.ok(!ohne.text.includes("Nachricht vom Technikteam"));
+    assert.ok(!ohne.html.includes("Nachricht vom Technikteam"));
+  });
+
+  it("maskieren Eingaben, damit nichts als HTML wirkt", () => {
+    const boese = '<img src=x onerror="alert(1)">';
+    const m = vorlagen.mailEntscheidung({
+      lehrkraft: boese,
+      termin: { ...termin, titel: boese, ort: boese },
+      status: "rueckfrage",
+      nachricht: `${boese}
+zweite Zeile`,
+      absender: boese,
+    });
+    assert.ok(!m.html.includes("<img"));
+    assert.ok(m.html.includes("&lt;img"));
+    assert.ok(m.html.includes("zweite Zeile"));
+    const neu = vorlagen.mailEingang({ lehrkraft: boese, termin, link: 'https://x.example/anmeldung/a"b' });
+    assert.ok(!neu.html.includes('a"b'));
+  });
+
+  it("enthalten den privaten Link nur in der Bestätigung, nicht in der Entscheidung", () => {
+    const link = "https://technik.example/anmeldung/abc";
+    const eingang = vorlagen.mailEingang({ lehrkraft: "F", termin, link });
+    assert.ok(eingang.text.includes(link) && eingang.html.includes(link));
+    const e = vorlagen.mailEntscheidung({ lehrkraft: "F", termin, status: "angenommen", nachricht: null, absender: null });
+    assert.ok(!e.text.includes("/anmeldung/") && !e.html.includes("/anmeldung/"));
+  });
+
+  it("verbinden das Team mit der Anmeldung", () => {
+    const link = "https://technik.example/team/anmeldungen/1";
+    for (const m of [vorlagen.mailTeamNeu({ lehrkraft: "F", termin, link }), vorlagen.mailTeamGeaendert({ lehrkraft: "F", termin, link })]) {
+      assert.ok(m.text.includes(link) && m.html.includes(link));
+    }
   });
 });

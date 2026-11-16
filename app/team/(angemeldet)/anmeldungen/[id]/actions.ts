@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
 import { FachFehler } from "@/lib/server/auth/fehler";
 import { istStatus, type Entscheidung, type StatusId } from "@/lib/entscheidung";
+import { benachrichtigeLehrkraft } from "@/lib/server/benachrichtigung";
+import type { MailErgebnis } from "@/lib/server/mail";
 import { entscheideFuerTeam, loescheAnmeldungFuerTeam } from "@/lib/server/team-anmeldungen";
 
 export type LoeschZustand = { fehler?: string };
@@ -23,7 +25,8 @@ export async function anmeldungLoeschenAktion(_vorher: LoeschZustand, formData: 
   redirect("/team");
 }
 
-export type EntscheidungsAntwort = { ok: true } | { ok: false; meldung: string };
+/** Bei Erfolg steht dabei, ob die Mail an die Lehrkraft rausging. */
+export type EntscheidungsAntwort = { ok: true; mail: MailErgebnis } | { ok: false; meldung: string };
 
 /** Annehmen, Rückfrage oder Ablehnen. Die Eingaben kommen vom Browser und werden im Server geprüft. */
 export async function anmeldungEntscheidenAktion(eingabe: {
@@ -36,14 +39,22 @@ export async function anmeldungEntscheidenAktion(eingabe: {
   const id = typeof eingabe?.id === "string" ? eingabe.id.slice(0, 64) : "";
   const nachricht = typeof eingabe?.nachricht === "string" ? eingabe.nachricht.slice(0, 2000) : "";
   if (!istStatus(eingabe?.erwarteterStatus)) return { ok: false, meldung: "Das hat nicht geklappt. Bitte lade die Seite neu." };
+  let mail: MailErgebnis;
   try {
+    const kontext = await anfrageKontext();
     const ergebnis = entscheideFuerTeam(
       konto,
       id,
       { status: eingabe.status, nachricht, erwarteterStatus: eingabe.erwarteterStatus },
-      await anfrageKontext(),
+      kontext,
     );
     if (!ergebnis.ok) return ergebnis;
+    // Erst nach dem Speichern. Geht die Mail schief, gilt die Entscheidung trotzdem.
+    mail = await benachrichtigeLehrkraft(
+      id,
+      { status: eingabe.status, nachricht, akteur: { id: konto.id, name: konto.anzeigename } },
+      kontext,
+    );
   } catch (fehler) {
     if (fehler instanceof FachFehler) return { ok: false, meldung: fehler.message };
     console.error(fehler);
@@ -51,5 +62,5 @@ export async function anmeldungEntscheidenAktion(eingabe: {
   }
   revalidatePath("/team");
   revalidatePath(`/team/anmeldungen/${id}`);
-  return { ok: true };
+  return { ok: true, mail };
 }

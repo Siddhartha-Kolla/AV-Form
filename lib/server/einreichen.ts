@@ -1,5 +1,5 @@
 import "server-only";
-import { datumLangMitWochentag, heuteBerlin } from "../format.ts";
+import { heuteBerlin } from "../format.ts";
 import { parseDatum, parseFormValues, validate, type Fehler, type FormValues } from "../registration.ts";
 import { erstelleAnmeldung, loescheAnmeldung } from "./anmeldungen.ts";
 import { istGedrosselt, registriereVersuch, type Versuchsschluessel } from "./auth/drosselung.ts";
@@ -7,6 +7,7 @@ import type { Kontext } from "./auth/fehler.ts";
 import { protokolliere } from "./auth/protokoll.ts";
 import { appUrl, teamAdressen } from "./config.ts";
 import { pruefeUpload, speichereDatei } from "./dateien.ts";
+import { mailEingang, mailTeamNeu, type Termin } from "../mail-vorlagen.ts";
 import { sendeMail, sendeMailMitGrund, type MailErgebnis } from "./mail.ts";
 
 /*
@@ -31,41 +32,8 @@ function schluessel(kontext: Kontext): Versuchsschluessel[] {
   return liste;
 }
 
-function mailAnLehrkraft(v: FormValues, link: string) {
-  return {
-    an: v.email,
-    betreff: `Ihre Anmeldung beim Technikteam: ${v.titel}`,
-    text: [
-      `Guten Tag ${v.lehrkraft},`,
-      "",
-      `wir haben Ihre Anmeldung „${v.titel}“ erhalten:`,
-      `${datumLangMitWochentag(v.datum)}, ${v.beginn} bis ${v.ende} Uhr, ${v.ort}`,
-      "",
-      "Über diesen privaten Link sehen Sie den Stand, ändern Angaben und reichen Unterlagen nach:",
-      link,
-      "",
-      "Der Link ist nur für Sie bestimmt. Wer ihn kennt, kann die Anmeldung ändern. Bitte geben Sie ihn nicht weiter.",
-      "",
-      "Wir melden uns, sobald das Team die Anmeldung geprüft hat.",
-      "",
-      "Viele Grüße",
-      "Technikteam",
-    ].join("\n"),
-  };
-}
-
-function mailAnTeam(v: FormValues, an: string, link: string) {
-  return {
-    an,
-    betreff: `Neue Anmeldung: ${v.titel}`,
-    text: [
-      `Neue Anmeldung von ${v.lehrkraft}:`,
-      `${v.titel}, ${datumLangMitWochentag(v.datum)}, ${v.beginn} bis ${v.ende} Uhr, ${v.ort}`,
-      "",
-      "Ansehen und entscheiden:",
-      link,
-    ].join("\n"),
-  };
+function termin(v: FormValues): Termin {
+  return { titel: v.titel, datum: v.datum, beginn: v.beginn, ende: v.ende, ort: v.ort };
 }
 
 /**
@@ -105,7 +73,7 @@ export async function reicheAnmeldungEin(eingabe: EinreichenEingabe, kontext: Ko
   // Mails erst nach dem Speichern. Ein Fehler dabei ändert nichts mehr an der Anmeldung.
   const basis = appUrl();
   const versand = basis
-    ? await sendeMailMitGrund(mailAnLehrkraft(v, `${basis}/anmeldung/${token}`))
+    ? await sendeMailMitGrund({ an: v.email, ...mailEingang({ lehrkraft: v.lehrkraft, termin: termin(v), link: `${basis}/anmeldung/${token}` }) })
     : { ergebnis: "nicht_konfiguriert" as MailErgebnis, grund: "APP_URL ist nicht gesetzt." };
   const mail = versand.ergebnis;
   if (mail !== "gesendet") {
@@ -122,7 +90,7 @@ export async function reicheAnmeldungEin(eingabe: EinreichenEingabe, kontext: Ko
   }
   if (basis) {
     // Das Team zu benachrichtigen darf die Antwort an die Lehrkraft nicht aufhalten.
-    void Promise.all(teamAdressen().map((an) => sendeMail(mailAnTeam(v, an, `${basis}/team/anmeldungen/${id}`))));
+    void Promise.all(teamAdressen().map((an) => sendeMail({ an, ...mailTeamNeu({ lehrkraft: v.lehrkraft, termin: termin(v), link: `${basis}/team/anmeldungen/${id}` }) })));
   }
   return { ok: true, mail };
 }
