@@ -16,7 +16,11 @@ Diese Datei hat zwei Teile: zuerst **Einrichten auf einem Server**, dann **Wie e
 - Zugangsdaten eines SMTP-Servers der Schule für die E-Mails.
 - Einen Ordner für die Daten, **außerhalb** des Projektordners, zum Beispiel `/var/lib/technik`.
 
-Die Datenbank (`better-sqlite3`) ist ein natives Modul. Auf gängigen Systemen kommt sie fertig gebaut mit `npm ci`. Fehlt für dein System ein fertiges Paket, braucht es einmalig Compiler-Werkzeuge (`build-essential`, `python3`).
+Die Datenbank (`better-sqlite3`) ist ein natives Modul. Auf gängigen Systemen kommt sie fertig gebaut mit `npm ci`. Fehlt für deine Node-Version ein fertiges Paket, baut npm sie selbst. Das braucht Compiler-Werkzeuge, sonst bricht `npm ci` mit `not found: make` ab. Unter Debian oder Ubuntu:
+
+```bash
+sudo apt update && sudo apt install -y build-essential python3
+```
 
 ### Schritte
 
