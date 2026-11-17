@@ -47,3 +47,13 @@ next-env.d.ts
 # Design-Werkzeug: Screenshots und Wegwerf-Entwürfe
 .impeccable/review/
 .impeccable/mocks/
+
+# Persönliche Arbeitsanweisungen für Claude Code, bleiben lokal
+/CLAUDE.md
+
+# Arbeitsdateien für Design und KI-Werkzeuge, bleiben lokal
+/AGENTS.md
+/PRODUCT.md
+/anforderungen.md
+/antislop.md
+/.impeccable/
