@@ -96,7 +96,20 @@ technik.deine-schule.de {
 }
 ```
 
-Bei nginx `client_max_body_size 250m;` setzen. Hochgeladene Dateien dürfen bis zu 20 MB groß sein, ein Formular bis zu 10 Dateien.
+Bei nginx braucht es neben der Größe auch die Kopfzeilen, sonst weist die App Formulare mit „Die Anfrage kommt nicht von dieser Seite“ ab:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    client_max_body_size 250m;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Hochgeladene Dateien dürfen bis zu 20 MB groß sein, ein Formular bis zu 10 Dateien. Wichtig ist außerdem `APP_URL` in `.env.local` mit der öffentlichen Adresse. Die App prüft damit, dass Formulare von der eigenen Seite kommen.
 
 **Täglich aufräumen.** Ein Cron-Eintrag löscht abgelaufene Anmeldungen samt Dateien, alte Sitzungen, Fehlversuche und altes Protokoll:
 

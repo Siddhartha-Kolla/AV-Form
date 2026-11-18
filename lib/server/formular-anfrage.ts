@@ -1,4 +1,5 @@
 import "server-only";
+import { appUrl, proxyVertrauen } from "./config.ts";
 
 /*
   Gemeinsame Hilfen für die Routen, die ein Formular mit Dateien annehmen (Anmeldung, Änderung durch die
@@ -13,10 +14,33 @@ export function antwort(daten: object, status = 200): Response {
   return Response.json(daten, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-/** Nur von dieser Seite aus. SameSite schützt Cookies, die Herkunftsprüfung ist hier ein zweiter Riegel. */
+/**
+ * Nur von dieser Seite aus. SameSite schützt Cookies, die Herkunftsprüfung ist hier ein zweiter Riegel.
+ *
+ * Hinter einem Reverse Proxy sieht die Anwendung als Adresse oft nur "localhost:3000", der Browser schickt aber
+ * die öffentliche Adresse als Herkunft. Deshalb gelten alle Adressen, die der Betreiber selbst festgelegt hat:
+ * APP_URL, der Host-Kopf und (nur mit TRUST_PROXY=1) der vom Proxy gesetzte X-Forwarded-Host.
+ */
 export function aufDieserSeite(anfrage: Request): boolean {
   const herkunft = anfrage.headers.get("origin");
-  return !herkunft || new URL(herkunft).host === new URL(anfrage.url).host;
+  if (!herkunft) return true;
+  let host: string;
+  try {
+    host = new URL(herkunft).host;
+  } catch {
+    return false; // zum Beispiel die Herkunft "null"
+  }
+
+  const erlaubt = new Set<string>([new URL(anfrage.url).host]);
+  const hostKopf = anfrage.headers.get("host");
+  if (hostKopf) erlaubt.add(hostKopf);
+  if (proxyVertrauen()) {
+    const weitergeleitet = anfrage.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    if (weitergeleitet) erlaubt.add(weitergeleitet);
+  }
+  const oeffentlich = appUrl();
+  if (oeffentlich) erlaubt.add(new URL(oeffentlich).host);
+  return erlaubt.has(host);
 }
 
 export type GelesenesFormular =
