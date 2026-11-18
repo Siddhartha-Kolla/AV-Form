@@ -20,7 +20,8 @@ import { db } from "./db.ts";
 /*
   Besetzung: wer vom Team bei einer Veranstaltung dabei ist (Regeln in lib/besetzung.ts).
 
-  - Jedes aktive Mitglied, das Anmeldungen sehen darf, zählt zur Besetzung. Gesperrte Konten nicht.
+  - Jedes aktive Mitglied, das Anmeldungen sehen darf, zählt zur Besetzung. Gesperrte Konten nicht, der Superuser
+    auch nicht: Er verwaltet nur und fährt nicht mit.
   - Eine Antwort ändert nur das Mitglied selbst. Wer "einsaetze.planen" hat (Admin, Superuser), darf auch für
     andere antworten und die Veranstaltung zur Pflicht machen.
   - Die Notiz ist freier Text und liegt wie alles Personenbezogene verschlüsselt in der Datenbank.
@@ -34,9 +35,14 @@ function verlange(akteur: Konto, berechtigung: Berechtigung): void {
   }
 }
 
+/** Zählt dieses Konto zur Besetzung? */
+function zaehltMit(k: Konto): boolean {
+  return k.status === "aktiv" && k.rolle !== "superuser" && darf(k.rolle, "anmeldungen.lesen");
+}
+
 /** Alle, die zur Besetzung zählen. */
 function team(): Konto[] {
-  return listeKonten().filter((k) => k.status === "aktiv" && darf(k.rolle, "anmeldungen.lesen"));
+  return listeKonten().filter(zaehltMit);
 }
 
 type PlanungsZeile = { anmeldung_id: string; pflicht: number; benoetigt: number | null };
@@ -104,7 +110,7 @@ export function besetzungenFuerListe(akteur: Konto): (anmeldungId: string) => Be
     antworten.set(z.anmeldung_id, pro);
   }
 
-  const leer: BesetzungKurz = { pflicht: false, benoetigt: null, dabei: 0, nichtDabei: 0, offen: aktive.size, meine: "offen" };
+  const leer: BesetzungKurz = { pflicht: false, benoetigt: null, dabei: 0, nichtDabei: 0, offen: aktive.size, meine: aktive.has(akteur.id) ? "offen" : null };
   const ergebnis = new Map<string, BesetzungKurz>();
   const ids = new Set([...plaene.keys(), ...antworten.keys()]);
   for (const id of ids) {
@@ -115,7 +121,7 @@ export function besetzungenFuerListe(akteur: Konto): (anmeldungId: string) => Be
       pflicht: plan?.pflicht === 1,
       benoetigt: plan?.benoetigt ?? null,
       ...zaehle(personen),
-      meine: pro.get(akteur.id) ?? "offen",
+      meine: aktive.has(akteur.id) ? (pro.get(akteur.id) ?? "offen") : null,
     });
   }
   return (anmeldungId) => ergebnis.get(anmeldungId) ?? leer;
@@ -142,8 +148,8 @@ export function setzeAntwort(
   const anmeldung = ladeOffene(anmeldungId);
 
   const ziel = findeKonto(kontoId);
-  if (!ziel || ziel.status !== "aktiv" || !darf(ziel.rolle, "anmeldungen.lesen")) {
-    throw new FachFehler("Dieses Mitglied gibt es nicht oder es ist gesperrt.");
+  if (!ziel || !zaehltMit(ziel)) {
+    throw new FachFehler("Dieses Mitglied gibt es nicht, ist gesperrt oder gehört nicht zur Besetzung.");
   }
   const plan = db().prepare("SELECT pflicht FROM besetzung WHERE anmeldung_id = ?").get(anmeldungId) as { pflicht: number } | undefined;
   const pflicht = plan?.pflicht === 1;

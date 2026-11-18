@@ -39,7 +39,8 @@ export type BesetzungKurz = {
   nichtDabei: number;
   offen: number;
   /** Die Antwort des Mitglieds, das die Seite ansieht. */
-  meine: MeineAntwort;
+  /** Null, wenn das Konto nicht zur Besetzung zählt (der Superuser). */
+  meine: MeineAntwort | null;
 };
 
 export function zaehle(personen: { antwort: MeineAntwort }[]): { dabei: number; nichtDabei: number; offen: number } {

@@ -208,12 +208,12 @@ Bei jeder Entscheidung kann das Team eine Nachricht schreiben. Die Lehrkraft bek
 
 ### Besetzung: wer vom Team dabei ist
 
-Zu jeder Veranstaltung, die noch gilt (also nicht abgelehnt und nicht vorbei), beantwortet jedes aktive Teammitglied mit einem Klick **Dabei** oder **Nicht dabei**, optional mit einer Notiz („erst ab 17 Uhr“). Wer noch nichts gesagt hat, ist **Offen**. Die Lehrkräfte sehen davon nichts.
+Zu jeder Veranstaltung, die noch gilt (also nicht abgelehnt und nicht vorbei), beantwortet jedes aktive Teammitglied (Mitglieder und Admins, nicht der Superuser, der nur verwaltet) mit einem Klick **Dabei** oder **Nicht dabei**, optional mit einer Notiz („erst ab 17 Uhr“). Wer noch nichts gesagt hat, ist **Offen**. Die Lehrkräfte sehen davon nichts.
 
 - **Pflicht.** Ein Admin kann eine Veranstaltung zur Pflicht machen und festlegen, wie viele Leute gebraucht werden. Bei einer Pflicht braucht ein „Nicht dabei“ eine kurze Begründung.
 - **Wer was darf.** Jeder ändert nur die eigene Antwort. Admins und der Superuser dürfen auch für andere eintragen und die Planung ändern (Berechtigung `einsaetze.planen`).
 - **In der Übersicht** zeigt jede Veranstaltung „2 von 4 dabei“. Der Satz oben sagt, bei wie vielen die eigene Antwort noch fehlt. Der Filter **Einsatz** zeigt „Meine Einsätze“ oder „Antwort fehlt“.
-- **Gespeichert** wird in den Tabellen `einsaetze` (eine Zeile je Antwort, die Notiz verschlüsselt) und `besetzung` (Pflicht, benötigte Zahl). Gesperrte Konten zählen nicht mit. Mit der Anmeldung oder dem Konto verschwinden auch die Einträge.
+- **Gespeichert** wird in den Tabellen `einsaetze` (eine Zeile je Antwort, die Notiz verschlüsselt) und `besetzung` (Pflicht, benötigte Zahl). Gesperrte Konten und der Superuser zählen nicht mit. Mit der Anmeldung oder dem Konto verschwinden auch die Einträge.
 - **Protokoll.** Aufgenommen werden Antworten bei einer Pflicht, Eintragungen für andere und jede Änderung der Planung. Gewöhnliche Antworten füllen das Protokoll nicht.
 - Erinnerungsmails gibt es nicht.
 

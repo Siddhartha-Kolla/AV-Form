@@ -528,11 +528,19 @@ describe("Besetzung", () => {
     assert.throws(() => ein.setzeAntwort(chefKonto(), offen.id, extra.id, { antwort: "dabei", notiz: "" }, kontext), /gesperrt/);
   });
 
+  it("zählt den Superuser nicht zur Besetzung, er kann aber planen und für andere eintragen", () => {
+    const { id } = neueAnmeldung();
+    const personen = ein.ladeBesetzung(chefKonto(), id).personen;
+    assert.ok(!personen.some((p) => p.kontoId === chef.id));
+    assert.ok(personen.some((p) => p.kontoId === mitglied.id));
+    assert.throws(() => ein.setzeAntwort(chefKonto(), id, chef.id, { antwort: "dabei", notiz: "" }, kontext), /Besetzung/);
+  });
+
   it("räumt mit der Anmeldung auf, und die Übersicht kennt meine Antwort", () => {
     const { id } = neueAnmeldung();
     ein.setzeAntwort(meinKonto(), id, mitglied.id, { antwort: "dabei", notiz: "" }, kontext);
     assert.equal(ein.besetzungenFuerListe(meinKonto())(id).meine, "dabei");
-    assert.equal(ein.besetzungenFuerListe(chefKonto())(id).meine, "offen");
+    assert.equal(ein.besetzungenFuerListe(chefKonto())(id).meine, null, "der Superuser zählt nicht zur Besetzung");
     anm.loescheAnmeldung(id);
     assert.equal((dbRoh().prepare("SELECT COUNT(*) AS n FROM einsaetze WHERE anmeldung_id = ?").get(id) as { n: number }).n, 0);
   });
