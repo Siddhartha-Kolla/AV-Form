@@ -11,6 +11,7 @@ export const BERECHTIGUNGEN = [
   "anmeldungen.bearbeiten",
   "anmeldungen.entscheiden",
   "anmeldungen.loeschen",
+  "einsaetze.planen",
   "team.verwalten",
   "protokoll.lesen",
 ] as const;

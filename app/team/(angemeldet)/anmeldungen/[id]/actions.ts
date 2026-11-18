@@ -6,6 +6,7 @@ import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
 import { FachFehler } from "@/lib/server/auth/fehler";
 import { istStatus, type Entscheidung, type StatusId } from "@/lib/entscheidung";
 import { benachrichtigeLehrkraft } from "@/lib/server/benachrichtigung";
+import { setzeAntwort, setzePlanung } from "@/lib/server/einsaetze";
 import type { MailErgebnis } from "@/lib/server/mail";
 import { entscheideFuerTeam, loescheAnmeldungFuerTeam } from "@/lib/server/team-anmeldungen";
 
@@ -63,4 +64,47 @@ export async function anmeldungEntscheidenAktion(eingabe: {
   revalidatePath("/team");
   revalidatePath(`/team/anmeldungen/${id}`);
   return { ok: true, mail };
+}
+
+export type BesetzungsAntwort = { ok: true } | { ok: false; meldung: string };
+
+function kurz(wert: unknown, max: number): string {
+  return typeof wert === "string" ? wert.slice(0, max) : "";
+}
+
+/** Ein Mitglied antwortet "Dabei" oder "Nicht dabei". Für andere antworten darf nur, wer die Besetzung plant. */
+export async function einsatzSetzenAktion(eingabe: {
+  anmeldungId: string;
+  kontoId: string;
+  antwort: "dabei" | "nicht_dabei";
+  notiz: string;
+}): Promise<BesetzungsAntwort> {
+  const { konto } = await verlangeSitzung({ berechtigung: "anmeldungen.lesen" });
+  const anmeldungId = kurz(eingabe?.anmeldungId, 64);
+  try {
+    setzeAntwort(konto, anmeldungId, kurz(eingabe?.kontoId, 64), { antwort: eingabe?.antwort, notiz: kurz(eingabe?.notiz, 1000) }, await anfrageKontext());
+  } catch (fehler) {
+    if (fehler instanceof FachFehler) return { ok: false, meldung: fehler.message };
+    console.error(fehler);
+    return { ok: false, meldung: "Das hat nicht geklappt. Bitte noch einmal probieren." };
+  }
+  revalidatePath(`/team/anmeldungen/${anmeldungId}`);
+  revalidatePath("/team");
+  return { ok: true };
+}
+
+/** Pflicht und Zahl der gebrauchten Leute festlegen. */
+export async function besetzungPlanenAktion(eingabe: { anmeldungId: string; pflicht: boolean; benoetigt: string }): Promise<BesetzungsAntwort> {
+  const { konto } = await verlangeSitzung({ berechtigung: "einsaetze.planen" });
+  const anmeldungId = kurz(eingabe?.anmeldungId, 64);
+  try {
+    setzePlanung(konto, anmeldungId, { pflicht: eingabe?.pflicht === true, benoetigt: kurz(eingabe?.benoetigt, 10) }, await anfrageKontext());
+  } catch (fehler) {
+    if (fehler instanceof FachFehler) return { ok: false, meldung: fehler.message };
+    console.error(fehler);
+    return { ok: false, meldung: "Das hat nicht geklappt. Bitte noch einmal probieren." };
+  }
+  revalidatePath(`/team/anmeldungen/${anmeldungId}`);
+  revalidatePath("/team");
+  return { ok: true };
 }

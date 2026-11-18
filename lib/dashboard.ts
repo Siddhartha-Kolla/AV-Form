@@ -8,6 +8,7 @@ import {
 } from "./registration.ts";
 import { monatTitel, tageZwischen } from "./format.ts";
 import type { StatusId } from "./entscheidung.ts";
+import type { BesetzungKurz, EinsatzAuswahl } from "./besetzung.ts";
 
 /*
   Reine Hilfsfunktionen für die Übersicht und die Detailseite des Teams.
@@ -40,6 +41,8 @@ export type Listeneintrag = {
   erstelltAm: string;
   dateienAnzahl: number;
   aenderungen: { zeit: string; felder: string[] }[];
+  /** Wer vom Team dabei ist. Fehlt, wenn die Besetzung nicht geladen wurde. */
+  besetzung?: BesetzungKurz;
 };
 
 /** Verkleinert eine vollständige Anmeldung auf das, was die Liste zeigt. */
@@ -50,6 +53,7 @@ export function alsListeneintrag(a: {
   erstelltAm: string;
   dateien: unknown[];
   aenderungen: { zeit: string; felder: string[] }[];
+  besetzung?: BesetzungKurz;
 }): Listeneintrag {
   const v = a.values;
   return {
@@ -73,6 +77,7 @@ export function alsListeneintrag(a: {
     dateienAnzahl: a.dateien.length,
     // Nur Zeit und Feldnamen, nie Namen oder Notizen der Bearbeiter
     aenderungen: a.aenderungen.map(({ zeit, felder }) => ({ zeit, felder })),
+    besetzung: a.besetzung,
   };
 }
 
@@ -194,7 +199,12 @@ export function istStatusAuswahl(wert: string): wert is StatusAuswahl {
   return wert === "zeitplan" || wert === "alle" || wert === "neu" || wert === "angenommen" || wert === "rueckfrage" || wert === "abgelehnt";
 }
 
-export type Filter = { zeit: ZeitAuswahl; art?: ArtId | ""; suche?: string; status?: StatusAuswahl };
+export type Filter = { zeit: ZeitAuswahl; art?: ArtId | ""; suche?: string; status?: StatusAuswahl; einsatz?: EinsatzAuswahl };
+
+/** Fehlt dem Mitglied noch eine Antwort? Nur bei Veranstaltungen, die noch gelten und anstehen. */
+export function antwortFehlt(e: Listeneintrag, heuteIso: string): boolean {
+  return e.status !== "abgelehnt" && e.values.datum >= heuteIso && e.besetzung?.meine === "offen";
+}
 
 export function istArt(wert: string): wert is ArtId {
   return ARTEN.some((a) => a.id === wert);
@@ -209,6 +219,8 @@ export function filtere(liste: Listeneintrag[], filter: Filter, heuteIso: string
     if (filter.art && !v.arten.includes(filter.art)) return false;
     const status = filter.status ?? "zeitplan";
     if (status === "zeitplan" ? e.status === "abgelehnt" : status !== "alle" && e.status !== status) return false;
+    if (filter.einsatz === "meine" && e.besetzung?.meine !== "dabei") return false;
+    if (filter.einsatz === "offen" && !antwortFehlt(e, heuteIso)) return false;
     if (suche) {
       const heuhaufen = [v.titel, v.lehrkraft, v.ort, v.art_sonstiges].join(" ").toLowerCase();
       if (!suche.split(/\s+/).every((wort) => heuhaufen.includes(wort))) return false;
@@ -244,6 +256,7 @@ export function zusammenfassung(liste: Listeneintrag[], heuteIso: string) {
     knapp: anstehend.filter((e) => knappAngemeldet(e)).length,
     geaendert: anstehend.filter((e) => juengsteAenderung(e, heuteIso, 7)).length,
     ohneUnterlagen: anstehend.filter((e) => e.dateienAnzahl === 0).length,
+    antwortFehlt: anstehend.filter((e) => antwortFehlt(e, heuteIso)).length,
   };
 }
 

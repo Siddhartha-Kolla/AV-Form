@@ -130,6 +130,25 @@ const MIGRATIONEN: string[] = [
     daten    BLOB NOT NULL
   ) STRICT;
   `,
+  // Version 6: Besetzung. Wer vom Team bei einer Veranstaltung dabei ist, und ob sie Pflicht ist.
+  // Einen Eintrag in "einsaetze" gibt es nur, wenn jemand geantwortet hat. Wer fehlt, ist "offen".
+  `
+  CREATE TABLE besetzung (
+    anmeldung_id TEXT PRIMARY KEY REFERENCES anmeldungen (id) ON DELETE CASCADE,
+    pflicht      INTEGER NOT NULL DEFAULT 0 CHECK (pflicht IN (0, 1)),
+    benoetigt    INTEGER CHECK (benoetigt IS NULL OR benoetigt BETWEEN 1 AND 50)
+  ) STRICT;
+
+  CREATE TABLE einsaetze (
+    anmeldung_id TEXT NOT NULL REFERENCES anmeldungen (id) ON DELETE CASCADE,
+    konto_id     TEXT NOT NULL REFERENCES konten (id) ON DELETE CASCADE,
+    antwort      TEXT NOT NULL CHECK (antwort IN ('dabei', 'nicht_dabei')),
+    notiz        BLOB,
+    zeit         TEXT NOT NULL,
+    PRIMARY KEY (anmeldung_id, konto_id)
+  ) STRICT;
+  CREATE INDEX einsaetze_konto ON einsaetze (konto_id);
+  `,
 ];
 
 const global = globalThis as unknown as { __technikDb?: Database.Database };

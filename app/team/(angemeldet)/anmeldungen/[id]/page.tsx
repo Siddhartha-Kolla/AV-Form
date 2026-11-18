@@ -6,6 +6,7 @@ import { Check, ChevronLeft, Clock, Mail, MessageCircleQuestion, Pencil, Triangl
 import { Laden } from "@/components/laden";
 import { Unterlagen } from "@/components/unterlagen/unterlagen";
 import { darf } from "@/lib/berechtigungen";
+import { besetzungGesperrt } from "@/lib/besetzung";
 import {
   alsListeneintrag,
   artBezeichnung,
@@ -26,7 +27,9 @@ import {
 import { mailAnLehrkraft, type Entscheidung, type StatusId } from "@/lib/entscheidung";
 import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
 import type { EntscheidungsEintrag } from "@/lib/server/anmeldungen";
+import { ladeBesetzung } from "@/lib/server/einsaetze";
 import { oeffneFuerTeam } from "@/lib/server/team-anmeldungen";
+import { Besetzung } from "./besetzung";
 import { Entscheidungsknoepfe } from "./entscheidung";
 import { AnmeldungLoeschen } from "./loeschen";
 
@@ -146,6 +149,7 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
   const techniker = betreuungNoetig(v);
   const arten = v.arten.map((a) => (a === "sonstiges" && v.art_sonstiges.trim() ? v.art_sonstiges.trim() : artBezeichnung(a)));
   const bevorstehend = v.datum >= heute;
+  const besetzung = imZeitplan ? ladeBesetzung(konto, anmeldung.id) : null;
   // Änderungen und Entscheidungen in einer Zeitleiste, die neueste oben.
   const verlauf = [
     ...aenderungen.map((a) => ({ art: "aenderung" as const, zeit: a.zeit, a })),
@@ -243,6 +247,20 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
 
       <div className="mt-12 grid gap-x-14 gap-y-14 @2xl:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="@container space-y-14">
+          {besetzung && (
+            <Abschnitt titel="Besetzung" hinweis="Wer vom Team dabei ist.">
+              <Besetzung
+                anmeldungId={anmeldung.id}
+                pflicht={besetzung.pflicht}
+                benoetigt={besetzung.benoetigt}
+                personen={besetzung.personen}
+                meineId={konto.id}
+                kannPlanen={darf(konto.rolle, "einsaetze.planen")}
+                gesperrt={besetzungGesperrt(status, v.datum, heute)}
+              />
+            </Abschnitt>
+          )}
+
           <Abschnitt titel="Technik">
             {gruppen.length === 0 ? (
               <p className="text-[15px] text-muted-foreground">Keine Technik angegeben.</p>

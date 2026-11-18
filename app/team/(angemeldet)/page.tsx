@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import { Laden } from "@/components/laden";
+import { istEinsatzAuswahl } from "@/lib/besetzung";
 import { alsListeneintrag, istArt, istStatusAuswahl, zusammenfassung, type ZeitAuswahl } from "@/lib/dashboard";
 import { heuteBerlin } from "@/lib/format";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
+import { besetzungenFuerListe } from "@/lib/server/einsaetze";
 import { alleFuerTeam } from "@/lib/server/team-anmeldungen";
 import { UebersichtListe } from "./uebersicht-liste";
 
@@ -30,11 +32,14 @@ async function UebersichtInhalt({
   const suche = eintrag(parameter.q).slice(0, 80);
   const statusWert = eintrag(parameter.status);
   const status = istStatusAuswahl(statusWert) ? statusWert : "zeitplan";
+  const einsatzWert = eintrag(parameter.einsatz);
+  const einsatz = istEinsatzAuswahl(einsatzWert) ? einsatzWert : "alle";
 
   const heute = heuteBerlin();
   const { anmeldungen, unlesbar } = alleFuerTeam(konto);
   // Nur die Felder der Liste gehen an den Browser, der Rest bleibt auf dem Server.
-  const eintraege = anmeldungen.map(alsListeneintrag);
+  const besetzungVon = besetzungenFuerListe(konto);
+  const eintraege = anmeldungen.map((a) => alsListeneintrag({ ...a, besetzung: besetzungVon(a.id) }));
   const stand = zusammenfassung(eintraege, heute);
 
   const saetze = [
@@ -43,6 +48,7 @@ async function UebersichtInhalt({
       : `${plural(stand.anstehend, "Veranstaltung steht", "Veranstaltungen stehen")} an.`,
     stand.zuPruefen > 0 && `Davon ${stand.zuPruefen === 1 ? "wartet" : "warten"} ${stand.zuPruefen} auf eine Entscheidung.`,
     stand.rueckfragen > 0 && `Bei ${plural(stand.rueckfragen, "Anmeldung", "Anmeldungen")} ist eine Rückfrage offen.`,
+    stand.antwortFehlt > 0 && `Bei ${plural(stand.antwortFehlt, "Veranstaltung", "Veranstaltungen")} fehlt noch deine Antwort, ob du dabei bist.`,
     stand.knapp > 0 && `${plural(stand.knapp, "wurde", "wurden")} zu knapp angemeldet.`,
     stand.geaendert > 0 && `${plural(stand.geaendert, "hat", "haben")} Änderungen aus den letzten 7 Tagen.`,
   ].filter(Boolean);
@@ -59,7 +65,7 @@ async function UebersichtInhalt({
         </p>
       )}
 
-      <UebersichtListe eintraege={eintraege} heute={heute} start={{ zeit, art, suche, status }} />
+      <UebersichtListe eintraege={eintraege} heute={heute} start={{ zeit, art, suche, status, einsatz }} />
     </div>
   );
 }

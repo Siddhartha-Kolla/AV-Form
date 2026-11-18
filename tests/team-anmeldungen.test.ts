@@ -10,7 +10,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "technik-team-test-"));
 process.env.DATA_DIR = dir;
 process.env.APP_ENCRYPTION_KEYS = `1:${randomBytes(32).toString("base64")}`;
 
-const { dbSchliessen } = await import("../lib/server/db.ts");
+const { dbSchliessen, db: dbRoh } = await import("../lib/server/db.ts");
 const { emptyValues } = await import("../lib/registration.ts");
 const anm = await import("../lib/server/anmeldungen.ts");
 const dat = await import("../lib/server/dateien.ts");
@@ -20,6 +20,7 @@ const lehr = await import("../lib/server/lehrkraft.ts");
 const prot = await import("../lib/server/auth/protokoll.ts");
 const verw = await import("../lib/server/auth/verwaltung.ts");
 const konten = await import("../lib/server/auth/konten.ts");
+const ein = await import("../lib/server/einsaetze.ts");
 const { FachFehler } = await import("../lib/server/auth/fehler.ts");
 
 const kontext = { ip: "203.0.113.7", geraet: "Test" };
@@ -447,5 +448,92 @@ describe("Privater Link der Lehrkraft", () => {
     const a = anm.findeNachId(id)!;
     const r = lehr.bearbeiteFuerLehrkraft(token, eingabe(a, { datum: "2020-02-02" }), kontext);
     assert.ok(!r.ok && r.fehler?.datum);
+  });
+});
+
+describe("Besetzung", () => {
+  const meinKonto = () => konten.findeKonto(mitglied.id)!;
+  const chefKonto = () => konten.findeKonto(chef.id)!;
+
+  it("lässt jeden für sich antworten und zeigt den Stand, ohne dass etwas ins Protokoll muss", () => {
+    const { id } = neueAnmeldung();
+    const vorher = ein.ladeBesetzung(mitglied, id);
+    assert.equal(vorher.pflicht, false);
+    assert.ok(vorher.personen.every((p) => p.antwort === "offen"));
+    assert.equal(vorher.personen[0].kontoId, mitglied.id, "man selbst steht zuerst");
+
+    const protokollVorher = prot.listeProtokoll({ ereignisse: ["einsatz.geaendert"] }).zeilen.length;
+    ein.setzeAntwort(mitglied, id, mitglied.id, { antwort: "dabei", notiz: "Ab 17 Uhr" }, kontext);
+    const danach = ein.ladeBesetzung(mitglied, id).personen.find((p) => p.kontoId === mitglied.id)!;
+    assert.equal(danach.antwort, "dabei");
+    assert.equal(danach.notiz, "Ab 17 Uhr");
+    assert.equal(prot.listeProtokoll({ ereignisse: ["einsatz.geaendert"] }).zeilen.length, protokollVorher, "gewöhnliche Antworten füllen das Protokoll nicht");
+
+    // Ändern statt doppelt eintragen, und die Notiz wird mit ersetzt.
+    ein.setzeAntwort(mitglied, id, mitglied.id, { antwort: "nicht_dabei", notiz: "" }, kontext);
+    const nochmal = ein.ladeBesetzung(mitglied, id).personen.find((p) => p.kontoId === mitglied.id)!;
+    assert.equal(nochmal.antwort, "nicht_dabei");
+    assert.equal(nochmal.notiz, null);
+  });
+
+  it("legt die Notiz verschlüsselt ab", () => {
+    const { id } = neueAnmeldung();
+    ein.setzeAntwort(mitglied, id, mitglied.id, { antwort: "dabei", notiz: "Geheimnotiz XYZ" }, kontext);
+    const roh = (dbRoh().prepare("SELECT notiz FROM einsaetze WHERE anmeldung_id = ?").get(id) as { notiz: Buffer }).notiz;
+    assert.ok(!roh.includes(Buffer.from("Geheimnotiz")), "die Notiz steht im Klartext in der Datenbank");
+  });
+
+  it("verlangt für andere und für die Planung die Berechtigung", () => {
+    const { id } = neueAnmeldung();
+    assert.throws(() => ein.setzeAntwort(mitglied, id, chef.id, { antwort: "dabei", notiz: "" }, kontext), /Berechtigung/);
+    assert.throws(() => ein.setzePlanung(mitglied, id, { pflicht: true, benoetigt: 3 }, kontext), /Berechtigung/);
+    // Der Superuser darf beides und trägt für andere ein. Das steht dann im Protokoll.
+    ein.setzeAntwort(chefKonto(), id, mitglied.id, { antwort: "dabei", notiz: "" }, kontext);
+    assert.equal(ein.ladeBesetzung(chefKonto(), id).personen.find((p) => p.kontoId === mitglied.id)!.antwort, "dabei");
+    const z = prot.listeProtokoll({ ereignisse: ["einsatz.geaendert"] }).zeilen;
+    assert.ok(z.some((r) => r.details.fuer === "Mitglied"));
+  });
+
+  it("macht eine Veranstaltung zur Pflicht: Ein Nein braucht dann eine Begründung und alles wird protokolliert", () => {
+    const { id } = neueAnmeldung();
+    ein.setzePlanung(chefKonto(), id, { pflicht: true, benoetigt: 2 }, kontext);
+    const plan = ein.ladeBesetzung(chefKonto(), id);
+    assert.equal(plan.pflicht, true);
+    assert.equal(plan.benoetigt, 2);
+    assert.throws(() => ein.setzeAntwort(mitglied, id, mitglied.id, { antwort: "nicht_dabei", notiz: "" }, kontext), /warum/);
+    ein.setzeAntwort(mitglied, id, mitglied.id, { antwort: "nicht_dabei", notiz: "Klausur" }, kontext);
+    assert.ok(prot.listeProtokoll({ ereignisse: ["einsatz.geplant"] }).zeilen.length >= 1);
+    assert.ok(prot.listeProtokoll({ ereignisse: ["einsatz.geaendert"] }).zeilen.some((r) => r.details.pflicht === "ja"));
+    // Zurück auf "keine Planung" räumt die Zeile auf.
+    ein.setzePlanung(chefKonto(), id, { pflicht: false, benoetigt: "" }, kontext);
+    assert.equal(ein.ladeBesetzung(chefKonto(), id).pflicht, false);
+    assert.throws(() => ein.setzePlanung(chefKonto(), id, { pflicht: true, benoetigt: 0 }, kontext), /zwischen/);
+  });
+
+  it("sperrt Abgelehntes und Vergangenes und zählt Gesperrte nicht mit", async () => {
+    const { id } = neueAnmeldung();
+    team.entscheideFuerTeam(mitglied, id, { status: "abgelehnt", nachricht: "", erwarteterStatus: "neu" }, kontext);
+    assert.throws(() => ein.setzeAntwort(mitglied, id, mitglied.id, { antwort: "dabei", notiz: "" }, kontext), /abgelehnt/);
+    const alt = anm.erstelleAnmeldung({ ...emptyValues(), titel: "Alt", lehrkraft: "L", email: "a@schule.example", datum: "2020-01-01", beginn: "10:00", ende: "11:00", ort: "Aula", arten: ["konzert"] });
+    assert.throws(() => ein.setzeAntwort(mitglied, alt.id, mitglied.id, { antwort: "dabei", notiz: "" }, kontext), /Vergangenheit/);
+
+    const offen = neueAnmeldung();
+    const { konto: extra } = await verw.legeMitgliedAn(chef, { benutzername: "extra", anzeigename: "Extra", rolle: "mitglied" }, kontext);
+    assert.ok(ein.ladeBesetzung(chefKonto(), offen.id).personen.some((p) => p.kontoId === extra.id));
+    ein.setzeAntwort(extra, offen.id, extra.id, { antwort: "dabei", notiz: "" }, kontext);
+    assert.equal(ein.besetzungenFuerListe(chefKonto())(offen.id).dabei, 1);
+    verw.setzeMitgliedStatus(chef, extra.id, "gesperrt", kontext);
+    assert.ok(!ein.ladeBesetzung(chefKonto(), offen.id).personen.some((p) => p.kontoId === extra.id), "Gesperrte zählen nicht zur Besetzung");
+    assert.equal(ein.besetzungenFuerListe(chefKonto())(offen.id).dabei, 0);
+    assert.throws(() => ein.setzeAntwort(chefKonto(), offen.id, extra.id, { antwort: "dabei", notiz: "" }, kontext), /gesperrt/);
+  });
+
+  it("räumt mit der Anmeldung auf, und die Übersicht kennt meine Antwort", () => {
+    const { id } = neueAnmeldung();
+    ein.setzeAntwort(meinKonto(), id, mitglied.id, { antwort: "dabei", notiz: "" }, kontext);
+    assert.equal(ein.besetzungenFuerListe(meinKonto())(id).meine, "dabei");
+    assert.equal(ein.besetzungenFuerListe(chefKonto())(id).meine, "offen");
+    anm.loescheAnmeldung(id);
+    assert.equal((dbRoh().prepare("SELECT COUNT(*) AS n FROM einsaetze WHERE anmeldung_id = ?").get(id) as { n: number }).n, 0);
   });
 });

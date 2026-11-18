@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Clock, MessageCircleQuestion, Paperclip, Pencil, TriangleAlert, X } from "lucide-react";
+import { Check, Clock, MessageCircleQuestion, Paperclip, Pencil, TriangleAlert, UserRoundCheck, Users, X } from "lucide-react";
+import { besetzungText, type EinsatzAuswahl } from "@/lib/besetzung";
 import { ARTEN, type ArtId } from "@/lib/registration";
 import {
+  antwortFehlt,
   betreuungNoetig,
   feldBezeichnung,
   filtere,
@@ -38,6 +40,12 @@ const STATUS_ZEILE: Record<StatusId, { symbol: typeof Check; klasse: string }> =
   abgelehnt: { symbol: X, klasse: "text-muted-foreground" },
 };
 
+const EINSATZ_OPTIONEN: { id: EinsatzAuswahl; text: string }[] = [
+  { id: "alle", text: "Alle" },
+  { id: "meine", text: "Meine Einsätze" },
+  { id: "offen", text: "Antwort fehlt" },
+];
+
 const ZEITEN: { id: ZeitAuswahl; text: string }[] = [
   { id: "anstehend", text: "Anstehend" },
   { id: "vergangen", text: "Vergangen" },
@@ -60,29 +68,31 @@ export function UebersichtListe({
 }: {
   eintraege: Listeneintrag[];
   heute: string;
-  start: { zeit: ZeitAuswahl; art: ArtId | ""; suche: string; status: StatusAuswahl };
+  start: { zeit: ZeitAuswahl; art: ArtId | ""; suche: string; status: StatusAuswahl; einsatz: EinsatzAuswahl };
 }) {
   const [zeit, setZeit] = useState<ZeitAuswahl>(start.zeit);
   const [art, setArt] = useState<ArtId | "">(start.art);
   const [suche, setSuche] = useState(start.suche);
   const [status, setStatus] = useState<StatusAuswahl>(start.status);
+  const [einsatz, setEinsatz] = useState<EinsatzAuswahl>(start.einsatz);
 
   useEffect(() => {
     const p = new URLSearchParams();
     if (zeit !== "anstehend") p.set("zeit", zeit);
     if (art) p.set("art", art);
     if (status !== "zeitplan") p.set("status", status);
+    if (einsatz !== "alle") p.set("einsatz", einsatz);
     if (suche.trim()) p.set("q", suche.trim());
     const text = p.toString();
     window.history.replaceState(null, "", text ? `/team?${text}` : "/team");
-  }, [zeit, art, suche, status]);
+  }, [zeit, art, suche, status, einsatz]);
 
   const sicht = useMemo(
-    () => filtere(eintraege, { zeit, art: art || undefined, suche, status }, heute),
-    [eintraege, zeit, art, suche, status, heute],
+    () => filtere(eintraege, { zeit, art: art || undefined, suche, status, einsatz }, heute),
+    [eintraege, zeit, art, suche, status, einsatz, heute],
   );
   const gruppen = useMemo(() => gruppiere(sicht, zeit, heute), [sicht, zeit, heute]);
-  const gefiltert = !!(art || suche.trim() || status !== "zeitplan");
+  const gefiltert = !!(art || suche.trim() || status !== "zeitplan" || einsatz !== "alle");
 
   return (
     <div>
@@ -146,6 +156,19 @@ export function UebersichtListe({
               </option>
             ))}
           </SelectField>
+          <SelectField
+            id="einsatz"
+            label="Einsatz"
+            value={einsatz}
+            onChange={(e) => setEinsatz(e.target.value as EinsatzAuswahl)}
+            className="w-full sm:w-44"
+          >
+            {EINSATZ_OPTIONEN.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.text}
+              </option>
+            ))}
+          </SelectField>
           {gefiltert && (
             <button
               type="button"
@@ -153,6 +176,7 @@ export function UebersichtListe({
                 setSuche("");
                 setArt("");
                 setStatus("zeitplan");
+                setEinsatz("alle");
               }}
               className="pb-3 text-sm underline underline-offset-4"
             >
@@ -242,6 +266,8 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
   const istHeute = v.datum === heute;
   const datum = datumTeile(v.datum);
   const techniker = betreuungNoetig(v);
+  const b = abgelehnt ? undefined : e.besetzung;
+  const hatBesetzung = !!b && (b.dabei > 0 || b.pflicht || b.benoetigt !== null);
 
   const arten: string[] = v.arten.map((id) => ARTEN.find((a) => a.id === id)?.label ?? id);
   if (v.arten.includes("sonstiges") && v.art_sonstiges.trim()) {
@@ -299,6 +325,27 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
           <li className="flex items-start gap-1.5 font-medium text-note-foreground">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             Unterlagen fehlen
+          </li>
+        )}
+        {b && hatBesetzung && (
+          <li className="flex items-start gap-1.5 text-muted-foreground">
+            <Users className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span>
+              {b.pflicht && <span className="font-medium text-note-foreground">Pflicht, </span>}
+              {besetzungText(b)}
+            </span>
+          </li>
+        )}
+        {antwortFehlt(e, heute) && (
+          <li className="flex items-start gap-1.5 font-medium text-note-foreground">
+            <Clock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            Deine Antwort fehlt
+          </li>
+        )}
+        {b?.meine === "dabei" && !vergangen && (
+          <li className="flex items-start gap-1.5 text-primary">
+            <UserRoundCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            Du bist dabei
           </li>
         )}
         {e.dateienAnzahl > 0 && (

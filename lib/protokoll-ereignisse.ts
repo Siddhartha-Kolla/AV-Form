@@ -26,6 +26,8 @@ export const EREIGNISSE = {
   "anmeldung.bearbeitet": { text: "Anmeldung bearbeitet", gruppe: "daten" },
   "anmeldung.entschieden": { text: "Über Anmeldung entschieden", gruppe: "daten" },
   "anmeldung.geloescht": { text: "Anmeldung gelöscht", gruppe: "daten" },
+  "einsatz.geaendert": { text: "Einsatz eingetragen", gruppe: "daten" },
+  "einsatz.geplant": { text: "Besetzung geplant", gruppe: "daten" },
   "datei.angesehen": { text: "Datei in der Vorschau angesehen", gruppe: "daten" },
   "datei.heruntergeladen": { text: "Datei heruntergeladen", gruppe: "daten" },
 } as const;

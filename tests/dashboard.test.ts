@@ -6,6 +6,7 @@ import {
   betreuungKurz,
   feldBezeichnung,
   betreuungNoetig,
+  antwortFehlt,
   filtere,
   gruppiere,
   juengsteAenderung,
@@ -198,7 +199,7 @@ describe("Status", () => {
       ],
       HEUTE,
     );
-    assert.deepEqual(s, { anstehend: 1, zuPruefen: 1, rueckfragen: 0, knapp: 1, geaendert: 0, ohneUnterlagen: 1 });
+    assert.deepEqual(s, { anstehend: 1, zuPruefen: 1, rueckfragen: 0, knapp: 1, geaendert: 0, ohneUnterlagen: 1, antwortFehlt: 0 });
   });
 });
 
@@ -242,5 +243,27 @@ describe("Status in der Übersicht", () => {
     assert.equal(z.anstehend, 3);
     assert.equal(z.zuPruefen, 1);
     assert.equal(z.rueckfragen, 1);
+  });
+});
+
+describe("Besetzung in der Übersicht", () => {
+  const kurz = (meine: "dabei" | "nicht_dabei" | "offen") => ({ pflicht: false, benoetigt: null, dabei: 0, nichtDabei: 0, offen: 1, meine });
+  const mit = (id: string, meine: "dabei" | "nicht_dabei" | "offen", datum = "2099-05-01", status: Listeneintrag["status"] = "neu") =>
+    eintrag(id, { datum }, { besetzung: kurz(meine), status });
+
+  it("filtert nach meinen Einsätzen und nach fehlender Antwort", () => {
+    const eintraege = [mit("ja", "dabei"), mit("nein", "nicht_dabei"), mit("offen", "offen"), mit("vorbei", "offen", "2020-01-01")];
+    const ids = (einsatz: "alle" | "meine" | "offen") =>
+      filtere(eintraege, { zeit: "alle", einsatz }, "2026-11-17").map((e) => e.id).sort();
+    assert.deepEqual(ids("alle"), ["ja", "nein", "offen", "vorbei"]);
+    assert.deepEqual(ids("meine"), ["ja"]);
+    assert.deepEqual(ids("offen"), ["offen"], "Vergangenes zählt nicht als fehlende Antwort");
+  });
+
+  it("zählt fehlende Antworten nur bei Anstehendem und nicht bei Abgelehntem", () => {
+    const eintraege = [mit("offen", "offen"), mit("abgelehnt", "offen", "2099-05-01", "abgelehnt"), mit("ja", "dabei")];
+    assert.equal(zusammenfassung(eintraege, "2026-11-17").antwortFehlt, 1);
+    assert.equal(antwortFehlt(mit("x", "offen"), "2026-11-17"), true);
+    assert.equal(antwortFehlt(eintrag("y", { datum: "2099-05-01" }), "2026-11-17"), false, "ohne geladene Besetzung gibt es keine Aufforderung");
   });
 });

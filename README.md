@@ -186,8 +186,8 @@ Lehrkräfte haben **kein Konto und kein Passwort**. Ihr Zugang ist ein Link der 
 | Rolle | Darf |
 |---|---|
 | **Superuser** (genau einer, nur per Kommandozeile anlegbar) | alles, auch das Protokoll lesen und Admins verwalten |
-| **Admin** | alles mit Anmeldungen (auch löschen), Mitglieder verwalten, **kein Protokoll** |
-| **Mitglied** | Anmeldungen ansehen, bearbeiten, entscheiden |
+| **Admin** | alles mit Anmeldungen (auch löschen), Besetzung planen, Mitglieder verwalten, **kein Protokoll** |
+| **Mitglied** | Anmeldungen ansehen, bearbeiten, entscheiden, eigene Einsätze eintragen |
 
 Wer ein Konto verwaltet, braucht einen höheren Rang als das Konto. Ein Admin legt also Mitglieder an, aber keine Admins, und niemand erhöht sich selbst.
 
@@ -205,6 +205,17 @@ Wer ein Konto verwaltet, braucht einen höheren Rang als das Konto. Ein Admin le
 | Abgelehnt | nicht im Zeitplan, verschwindet aus der Übersicht, bleibt unter dem Filter „Abgelehnt“ auffindbar |
 
 Bei jeder Entscheidung kann das Team eine Nachricht schreiben. Die Lehrkraft bekommt sie **per Mail** und sieht sie auf ihrer Seite. Ändert die Lehrkraft etwas an einer angenommenen oder rückgefragten Anmeldung, springt sie auf „Zu prüfen“ zurück, und das Team bekommt eine Mail. Zwei Teammitglieder, die gleichzeitig entscheiden, überschreiben sich nicht: Der zweite bekommt den Hinweis, die Seite neu zu laden.
+
+### Besetzung: wer vom Team dabei ist
+
+Zu jeder Veranstaltung, die noch gilt (also nicht abgelehnt und nicht vorbei), beantwortet jedes aktive Teammitglied mit einem Klick **Dabei** oder **Nicht dabei**, optional mit einer Notiz („erst ab 17 Uhr“). Wer noch nichts gesagt hat, ist **Offen**. Die Lehrkräfte sehen davon nichts.
+
+- **Pflicht.** Ein Admin kann eine Veranstaltung zur Pflicht machen und festlegen, wie viele Leute gebraucht werden. Bei einer Pflicht braucht ein „Nicht dabei“ eine kurze Begründung.
+- **Wer was darf.** Jeder ändert nur die eigene Antwort. Admins und der Superuser dürfen auch für andere eintragen und die Planung ändern (Berechtigung `einsaetze.planen`).
+- **In der Übersicht** zeigt jede Veranstaltung „2 von 4 dabei“. Der Satz oben sagt, bei wie vielen die eigene Antwort noch fehlt. Der Filter **Einsatz** zeigt „Meine Einsätze“ oder „Antwort fehlt“.
+- **Gespeichert** wird in den Tabellen `einsaetze` (eine Zeile je Antwort, die Notiz verschlüsselt) und `besetzung` (Pflicht, benötigte Zahl). Gesperrte Konten zählen nicht mit. Mit der Anmeldung oder dem Konto verschwinden auch die Einträge.
+- **Protokoll.** Aufgenommen werden Antworten bei einer Pflicht, Eintragungen für andere und jede Änderung der Planung. Gewöhnliche Antworten füllen das Protokoll nicht.
+- Erinnerungsmails gibt es nicht.
 
 ### Verschlüsselung und Datenschutz
 
