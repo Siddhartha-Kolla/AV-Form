@@ -48,7 +48,7 @@ async function UebersichtInhalt({
       : `${plural(stand.anstehend, "Veranstaltung steht", "Veranstaltungen stehen")} an.`,
     stand.zuPruefen > 0 && `Davon ${stand.zuPruefen === 1 ? "wartet" : "warten"} ${stand.zuPruefen} auf eine Entscheidung.`,
     stand.rueckfragen > 0 && `Bei ${plural(stand.rueckfragen, "Anmeldung", "Anmeldungen")} ist eine Rückfrage offen.`,
-    stand.antwortFehlt > 0 && `Bei ${plural(stand.antwortFehlt, "Veranstaltung", "Veranstaltungen")} fehlt noch deine Antwort, ob du dabei bist.`,
+    stand.antwortFehlt > 0 && `Bei ${plural(stand.antwortFehlt, "Veranstaltung", "Veranstaltungen")} fehlt noch deine Antwort.`,
     stand.knapp > 0 && `${plural(stand.knapp, "wurde", "wurden")} zu knapp angemeldet.`,
     stand.geaendert > 0 && `${plural(stand.geaendert, "hat", "haben")} Änderungen aus den letzten 7 Tagen.`,
   ].filter(Boolean);

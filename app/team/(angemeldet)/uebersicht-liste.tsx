@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Clock, MessageCircleQuestion, Paperclip, Pencil, TriangleAlert, UserRoundCheck, Users, X } from "lucide-react";
+import { Check, Clock, MessageCircleQuestion, Pencil, TriangleAlert, Users, X } from "lucide-react";
 import { besetzungText, type EinsatzAuswahl } from "@/lib/besetzung";
 import { ARTEN, type ArtId } from "@/lib/registration";
 import {
@@ -268,6 +268,7 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
   const techniker = betreuungNoetig(v);
   const b = abgelehnt ? undefined : e.besetzung;
   const hatBesetzung = !!b && (b.dabei > 0 || b.pflicht || b.benoetigt !== null);
+  const fehltAntwort = antwortFehlt(e, heute);
 
   const arten: string[] = v.arten.map((id) => ARTEN.find((a) => a.id === id)?.label ?? id);
   if (v.arten.includes("sonstiges") && v.art_sonstiges.trim()) {
@@ -311,10 +312,12 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
         {!(vergangen && e.status === "neu") && (
           <li className={cn("flex items-start gap-1.5", stand.klasse)}>
             <stand.symbol className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {STATUS[e.status].text}
+            <span>
+              {STATUS[e.status].text}
+              {!vergangen && !abgelehnt && <span className="text-muted-foreground">, {inTagen(v.datum, heute)}</span>}
+            </span>
           </li>
         )}
-        {!vergangen && !abgelehnt && <li className="text-muted-foreground">{inTagen(v.datum, heute)}</li>}
         {knapp && (
           <li className="flex items-start gap-1.5 font-medium text-note-foreground">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -327,31 +330,19 @@ function Zeile({ e, heute }: { e: Listeneintrag; heute: string }) {
             Unterlagen fehlen
           </li>
         )}
-        {b && hatBesetzung && (
+        {(hatBesetzung || fehltAntwort) && (
           <li className="flex items-start gap-1.5 text-muted-foreground">
             <Users className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
-              {b.pflicht && <span className="font-medium text-note-foreground">Pflicht, </span>}
-              {besetzungText(b)}
+              {b?.pflicht && <span className="font-medium text-note-foreground">Pflicht, </span>}
+              {hatBesetzung && b && besetzungText(b)}
+              {fehltAntwort && (
+                <span className="font-medium text-note-foreground">
+                  {hatBesetzung ? ", " : ""}
+                  Deine Antwort fehlt
+                </span>
+              )}
             </span>
-          </li>
-        )}
-        {antwortFehlt(e, heute) && (
-          <li className="flex items-start gap-1.5 font-medium text-note-foreground">
-            <Clock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            Deine Antwort fehlt
-          </li>
-        )}
-        {b?.meine === "dabei" && !vergangen && (
-          <li className="flex items-start gap-1.5 text-primary">
-            <UserRoundCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            Du bist dabei
-          </li>
-        )}
-        {e.dateienAnzahl > 0 && (
-          <li className="flex items-start gap-1.5 text-muted-foreground">
-            <Paperclip className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {e.dateienAnzahl === 1 ? "1 Datei" : `${e.dateienAnzahl} Dateien`}
           </li>
         )}
         {aenderung && (

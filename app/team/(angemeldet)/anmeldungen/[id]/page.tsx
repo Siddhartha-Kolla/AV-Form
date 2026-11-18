@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, ChevronLeft, Clock, Mail, MessageCircleQuestion, Pencil, TriangleAlert, X } from "lucide-react";
+import { Check, ChevronLeft, Clock, MessageCircleQuestion, Pencil, TriangleAlert, X } from "lucide-react";
 import { Laden } from "@/components/laden";
 import { Unterlagen } from "@/components/unterlagen/unterlagen";
 import { darf } from "@/lib/berechtigungen";
@@ -24,7 +24,7 @@ import {
   heuteBerlin,
   inTagen,
 } from "@/lib/format";
-import { mailAnLehrkraft, type Entscheidung, type StatusId } from "@/lib/entscheidung";
+import type { Entscheidung, StatusId } from "@/lib/entscheidung";
 import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
 import type { EntscheidungsEintrag } from "@/lib/server/anmeldungen";
 import { ladeBesetzung } from "@/lib/server/einsaetze";
@@ -81,13 +81,11 @@ function EntscheidungsFeld({
   status,
   entscheidungen,
   kannEntscheiden,
-  mail,
 }: {
   id: string;
   status: StatusId;
   entscheidungen: EntscheidungsEintrag[];
   kannEntscheiden: boolean;
-  mail: (nachricht: string | null) => string;
 }) {
   const { symbol: Symbol, farbe } = STATUS_SYMBOL[status];
   const letzte = entscheidungen[0];
@@ -102,7 +100,7 @@ function EntscheidungsFeld({
         : "";
 
   return (
-    <section aria-label="Entscheidung" className="mt-8 rounded-lg border border-border bg-surface px-5 py-4">
+    <section aria-label="Entscheidung" className="mt-6 rounded-lg bg-muted/60 px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
         <div className="min-w-0 max-w-[62ch] flex-1">
           <p className={`flex items-center gap-2 text-[15px] font-semibold ${farbe}`}>
@@ -112,15 +110,6 @@ function EntscheidungsFeld({
           {unterzeile && <p className="mt-1 text-sm text-muted-foreground">{unterzeile}</p>}
           {aktuell?.nachricht && (
             <p className="mt-3 whitespace-pre-wrap border-l-2 border-border pl-3 text-[15px] leading-relaxed">{aktuell.nachricht}</p>
-          )}
-          {aktuell && (
-            <a
-              href={mail(aktuell.nachricht)}
-              className="mt-3 inline-flex items-center gap-1.5 text-sm underline decoration-muted-foreground underline-offset-4 hover:decoration-foreground"
-            >
-              <Mail className="size-4" aria-hidden="true" />
-              E-Mail an die Lehrkraft vorbereiten
-            </a>
           )}
         </div>
         {kannEntscheiden && <Entscheidungsknoepfe id={id} status={status} />}
@@ -142,8 +131,10 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
   const frist = fristBeiAnmeldung(v, anmeldung.erstelltAm);
   // Abgelehntes steht nicht im Zeitplan, deshalb gibt es dazu keine Warnungen mehr.
   const imZeitplan = status !== "abgelehnt";
-  const knapp = imZeitplan && frist && frist.status === "knapp" ? frist : null;
-  const fehlen = imZeitplan && unterlagenFehlen(alsListeneintrag({ ...anmeldung, dateien, aenderungen }), heute);
+  // Hinweise gibt es nur, solange noch zu entscheiden ist. Danach genügen Status und Unterlagenliste.
+  const offen = status === "neu" || status === "rueckfrage";
+  const knapp = offen && frist && frist.status === "knapp" ? frist : null;
+  const fehlen = offen && unterlagenFehlen(alsListeneintrag({ ...anmeldung, dateien, aenderungen }), heute);
   const gruppen = technikGruppen(v);
   const termine = terminListe(v);
   const techniker = betreuungNoetig(v);
@@ -213,19 +204,9 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
         status={status}
         entscheidungen={entscheidungen}
         kannEntscheiden={darf(konto.rolle, "anmeldungen.entscheiden")}
-        mail={(nachricht) =>
-          mailAnLehrkraft({
-            email: v.email,
-            lehrkraft: v.lehrkraft,
-            titel: v.titel,
-            status: status as Entscheidung,
-            nachricht,
-            absender: konto.anzeigename,
-          })
-        }
       />
 
-      <dl className="mt-6 grid gap-x-8 gap-y-5 border-y border-border py-5 @xl:grid-cols-3">
+      <dl className="mt-8 grid gap-x-8 gap-y-5 @xl:grid-cols-3">
         <Fakt name="Lehrkraft">
           {v.lehrkraft}
           <a href={`mailto:${v.email}`} className="mt-0.5 block text-sm font-normal text-muted-foreground underline underline-offset-4 hover:text-foreground">
@@ -245,10 +226,10 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
         </Fakt>
       </dl>
 
-      <div className="mt-12 grid gap-x-14 gap-y-14 @2xl:grid-cols-[minmax(0,1fr)_19rem]">
+      <div className="mt-10 grid gap-x-14 gap-y-14 border-t border-border pt-10 @2xl:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="@container space-y-14">
           {besetzung && (
-            <Abschnitt titel="Besetzung" hinweis="Wer vom Team dabei ist.">
+            <Abschnitt titel="Besetzung">
               <Besetzung
                 anmeldungId={anmeldung.id}
                 pflicht={besetzung.pflicht}

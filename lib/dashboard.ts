@@ -167,7 +167,9 @@ export function fristBeiAnmeldung(v: Pick<FormValues, "datum" | "arten">, erstel
   return fristPruefen(v.datum, v.arten, new Date(erstelltAm));
 }
 
+/** Nur solange noch nichts entschieden ist: Nach Annahme oder Ablehnung ist der Hinweis erledigt. */
 export function knappAngemeldet(e: Listeneintrag): { vorhanden: number; noetig: number; art: string } | null {
+  if (e.status !== "neu" && e.status !== "rueckfrage") return null;
   const f = fristBeiAnmeldung(e.values, e.erstelltAm);
   return f && f.status === "knapp" ? { vorhanden: f.vorhanden, noetig: f.noetig, art: f.art } : null;
 }

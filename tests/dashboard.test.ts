@@ -182,6 +182,8 @@ describe("Status", () => {
     assert.equal(knappAngemeldet(rechtzeitig), null);
     const absprache = eintrag("a", { datum: "2026-11-20", arten: ["sonstiges"] }, { erstelltAm: "2026-11-19T10:00:00.000Z" });
     assert.equal(knappAngemeldet(absprache), null);
+    const angenommen = eintrag("n", { datum: "2026-11-20", arten: ["konzert"] }, { erstelltAm: "2026-11-01T10:00:00.000Z", status: "angenommen" });
+    assert.equal(knappAngemeldet(angenommen), null, "nach der Entscheidung ist der Hinweis erledigt");
   });
 
   it("zeigt nur junge Änderungen", () => {
