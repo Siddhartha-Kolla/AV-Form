@@ -149,6 +149,17 @@ const MIGRATIONEN: string[] = [
   ) STRICT;
   CREATE INDEX einsaetze_konto ON einsaetze (konto_id);
   `,
+  // Version 7: Kalender-Link je Konto. Nachgeschlagen wird über den Hash, der Link selbst liegt verschlüsselt
+  // dabei, damit er sich auf der Kontoseite wieder anzeigen lässt.
+  `
+  CREATE TABLE kalender_links (
+    konto_id          TEXT PRIMARY KEY REFERENCES konten (id) ON DELETE CASCADE,
+    token_hash        TEXT NOT NULL UNIQUE,
+    token_verschl     BLOB NOT NULL,
+    erzeugt_am        TEXT NOT NULL,
+    zuletzt_abgerufen TEXT
+  ) STRICT;
+  `,
 ];
 
 const global = globalThis as unknown as { __technikDb?: Database.Database };

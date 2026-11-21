@@ -127,6 +127,14 @@ export function besetzungenFuerListe(akteur: Konto): (anmeldungId: string) => Be
   return (anmeldungId) => ergebnis.get(anmeldungId) ?? leer;
 }
 
+/** Die Veranstaltungen, bei denen das Konto "Dabei" gesagt hat. Für den persönlichen Kalender. */
+export function einsatzIdsDabei(kontoId: string): Set<string> {
+  const zeilen = db().prepare("SELECT anmeldung_id FROM einsaetze WHERE konto_id = ? AND antwort = 'dabei'").all(kontoId) as {
+    anmeldung_id: string;
+  }[];
+  return new Set(zeilen.map((z) => z.anmeldung_id));
+}
+
 function ladeOffene(anmeldungId: string) {
   const anmeldung = findeNachId(anmeldungId);
   if (!anmeldung) throw new FachFehler("Diese Anmeldung gibt es nicht mehr.");

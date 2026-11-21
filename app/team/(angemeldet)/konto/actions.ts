@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { anfrageKontext, verlangeSitzung } from "@/lib/server/auth/dal";
 import { entferneKontoBild, speichereKontoBild } from "@/lib/server/auth/bilder";
 import { FachFehler } from "@/lib/server/auth/fehler";
+import { erzeugeKalenderLink, loescheKalenderLink } from "@/lib/server/kalender";
 import { aendereEigenesPasswort, beendeEigeneAndereSitzungen } from "@/lib/server/auth/verwaltung";
 
 export type KontoZustand = { ok?: boolean; fehler?: string; meldung?: string };
@@ -59,4 +60,25 @@ export async function bildEntfernenAktion(): Promise<KontoZustand> {
   entferneKontoBild(konto, await anfrageKontext());
   revalidatePath("/team", "layout");
   return { ok: true, meldung: "Profilbild entfernt." };
+}
+
+/** Erzeugt den Kalender-Link, oder einen neuen. Ein alter Link wird dadurch ungültig. */
+export async function kalenderLinkErzeugenAktion(): Promise<KontoZustand> {
+  const { konto } = await verlangeSitzung({ berechtigung: "anmeldungen.lesen" });
+  try {
+    erzeugeKalenderLink(konto, await anfrageKontext());
+  } catch (fehler) {
+    if (fehler instanceof FachFehler) return { ok: false, fehler: fehler.message };
+    console.error(fehler);
+    return { ok: false, fehler: "Das hat nicht geklappt. Bitte noch einmal probieren." };
+  }
+  revalidatePath("/team/konto");
+  return { ok: true };
+}
+
+export async function kalenderLinkLoeschenAktion(): Promise<KontoZustand> {
+  const { konto } = await verlangeSitzung({ berechtigung: "anmeldungen.lesen" });
+  loescheKalenderLink(konto, await anfrageKontext());
+  revalidatePath("/team/konto");
+  return { ok: true };
 }

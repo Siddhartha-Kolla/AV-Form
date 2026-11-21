@@ -17,6 +17,8 @@ export const EREIGNISSE = {
   "konto.geloescht": { text: "Konto gelöscht", gruppe: "konten" },
   "konto.bild_geaendert": { text: "Profilbild geändert", gruppe: "konten" },
   "konto.bild_entfernt": { text: "Profilbild entfernt", gruppe: "konten" },
+  "kalender.link_erzeugt": { text: "Kalender-Link erzeugt", gruppe: "konten" },
+  "kalender.link_entfernt": { text: "Kalender-Link gelöscht", gruppe: "konten" },
   "cli.superuser_angelegt": { text: "Superuser über die Kommandozeile angelegt", gruppe: "konten" },
   "cli.passwort_zurueckgesetzt": { text: "Passwort über die Kommandozeile zurückgesetzt", gruppe: "konten" },
   "anmeldung.eingegangen": { text: "Anmeldung eingegangen", gruppe: "daten" },

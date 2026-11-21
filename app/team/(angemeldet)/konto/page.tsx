@@ -1,9 +1,12 @@
 import { Laden } from "@/components/laden";
 import { Suspense, type ReactNode } from "react";
-import { ROLLEN } from "@/lib/berechtigungen";
+import { ROLLEN, darf } from "@/lib/berechtigungen";
 import { datumZeit, geraetKurz } from "@/lib/format";
 import { verlangeSitzung } from "@/lib/server/auth/dal";
 import { listeSitzungen } from "@/lib/server/auth/sitzungen";
+import { appUrl } from "@/lib/server/config";
+import { ladeKalenderLink } from "@/lib/server/kalender";
+import { Kalender } from "./kalender";
 import { AndereSitzungenBeenden, PasswortAendern } from "./konto-forms";
 import { ProfilBild } from "./profilbild";
 
@@ -31,6 +34,8 @@ async function KontoInhalt() {
   const { konto, sitzungId } = await verlangeSitzung({ passwortWechsel: true });
   const sitzungen = listeSitzungen(konto.id);
   const andere = sitzungen.filter((s) => s.id !== sitzungId);
+  const basis = appUrl();
+  const kalender = !konto.mussPasswortAendern && darf(konto.rolle, "anmeldungen.lesen") ? ladeKalenderLink(konto) : null;
 
   return (
     <div>
@@ -71,6 +76,29 @@ async function KontoInhalt() {
           )}
           <PasswortAendern />
         </Bereich>
+
+        {!konto.mussPasswortAendern && darf(konto.rolle, "anmeldungen.lesen") && (
+          <Bereich id="kalender-titel" titel="Kalender" text="Veranstaltungen automatisch im eigenen Kalender.">
+            {basis ? (
+              <Kalender
+                links={
+                  kalender
+                    ? {
+                        alle: `${basis}/kalender/${kalender.token}/alle.ics`,
+                        meine: `${basis}/kalender/${kalender.token}/meine.ics`,
+                      }
+                    : null
+                }
+                zuletzt={kalender?.zuletztAbgerufen ?? null}
+                kannMeine={konto.rolle !== "superuser"}
+              />
+            ) : (
+              <p className="max-w-[60ch] text-[15px] leading-relaxed text-muted-foreground">
+                Für den Kalender muss die Adresse der Seite eingetragen sein. Bitte sag dem Superuser, dass APP_URL gesetzt werden muss.
+              </p>
+            )}
+          </Bereich>
+        )}
 
         {!konto.mussPasswortAendern && (
           <Bereich id="sitzungen-titel" titel="Angemeldete Geräte" text="Hier siehst du, wo du gerade angemeldet bist.">

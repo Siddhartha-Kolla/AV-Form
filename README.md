@@ -217,6 +217,17 @@ Zu jeder Veranstaltung, die noch gilt (also nicht abgelehnt und nicht vorbei), b
 - **Protokoll.** Aufgenommen werden Antworten bei einer Pflicht, Eintragungen für andere und jede Änderung der Planung. Gewöhnliche Antworten füllen das Protokoll nicht.
 - Erinnerungsmails gibt es nicht.
 
+### Kalender: Termine im eigenen Kalender
+
+Jedes Teammitglied kann unter **Mein Konto, Kalender** einen privaten Link erzeugen und in Google, Apple oder Outlook abonnieren. Neue Termine und Änderungen erscheinen dann automatisch. Der Kalender ist nur zum Lesen.
+
+- **Inhalt.** Es stehen nur **angenommene** Veranstaltungen drin, ab 30 Tagen zurück. Ändert die Lehrkraft eine angenommene Anmeldung, bleibt sie im Kalender, bis das Team anders entscheidet. Zwei Varianten: alle angenommenen Veranstaltungen, oder nur die, bei denen man „Dabei“ gesagt hat. Proben, Generalprobe, Aufbau und Abbau mit echtem Datum werden eigene Einträge.
+- **Erinnerung.** Der persönliche Kalender erinnert einen Tag vorher. Im Gesamtkalender erinnern nur Pflicht-Veranstaltungen. Google ignoriert Erinnerungen aus abonnierten Kalendern und nutzt die eigenen Einstellungen.
+- **Einzelner Termin.** Auf der Detailseite einer angenommenen Veranstaltung gibt es „Zum Kalender hinzufügen“ (eine .ics-Datei ohne Abo).
+- **Datenschutz.** Google und Apple rufen den Link auf ihren Servern ab und speichern den Inhalt. Deshalb stehen nur Titel, Zeit, Ort, Technik in Kurzform, die Besetzung in Zahlen und ein Link zur Anmeldung drin. **Nie** Name oder E-Mail der Lehrkraft, Anmerkungen, Notizen, Dateien oder die Antworten einzelner Personen.
+- **Sicherheit.** Der Link enthält ein geheimes Token (256 Bit), das Passwort ersetzt. In der Datenbank steht sein Hash und das Token verschlüsselt (Tabelle `kalender_links`). „Neuen Link erzeugen“ macht den alten ungültig, „Link löschen“ entfernt ihn. Bei einem gesperrten oder gelöschten Konto liefert der Link nichts mehr. Abrufe sind begrenzt (30 je 15 Minuten), zu sehen ist „zuletzt abgerufen“. Der Superuser hat nur den Gesamtkalender, er fährt nicht mit.
+- **Voraussetzung.** `APP_URL` muss gesetzt sein, weil der Link die öffentliche Adresse enthält. Der Pfad `/kalender/…` braucht keine Anmeldung und darf im Proxy nicht geschützt werden.
+
 ### Verschlüsselung und Datenschutz
 
 - **Was im Klartext liegt:** nur das Veranstaltungsdatum (zum Sortieren und Aufräumen) und technische Schlüssel wie IDs und Zeitstempel.
@@ -244,6 +255,7 @@ In der Entwicklung (ohne `SMTP_HOST`) erscheinen die Mails samt Links im Termina
 | `app/anmeldung/` | Senden, privater Link der Lehrkraft, Änderungen |
 | `app/team/` | der Teambereich: Übersicht, Detailseite, Mitglieder, Protokoll, Mein Konto |
 | `app/belegung/` | der öffentliche Kalender (nur Datum und Uhrzeit) |
+| `app/kalender/`, `lib/kalender.ts` | der Kalender-Feed zum Abonnieren (.ics) und das Format dazu |
 | `lib/` | Regeln, die Browser und Server gemeinsam brauchen (Prüfungen, Status, Rollen, Mail-Vorlagen) |
 | `lib/server/` | alles, was Datenbank, Dateien, Schlüssel und Mails anfasst. Nur auf dem Server |
 | `lib/server/auth/` | Konten, Anmeldung, Sitzungen, Bremse, Protokoll |

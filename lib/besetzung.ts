@@ -38,8 +38,7 @@ export type BesetzungKurz = {
   dabei: number;
   nichtDabei: number;
   offen: number;
-  /** Die Antwort des Mitglieds, das die Seite ansieht. */
-  /** Null, wenn das Konto nicht zur Besetzung zählt (der Superuser). */
+  /** Die Antwort des Mitglieds, das die Seite ansieht. Null, wenn das Konto nicht zur Besetzung zählt (der Superuser). */
   meine: MeineAntwort | null;
 };
 

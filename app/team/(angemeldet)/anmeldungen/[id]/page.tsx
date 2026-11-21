@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, ChevronLeft, Clock, MessageCircleQuestion, Pencil, TriangleAlert, X } from "lucide-react";
+import { CalendarPlus, Check, ChevronLeft, Clock, MessageCircleQuestion, Pencil, TriangleAlert, X } from "lucide-react";
 import { Laden } from "@/components/laden";
 import { Unterlagen } from "@/components/unterlagen/unterlagen";
 import { darf } from "@/lib/berechtigungen";
@@ -178,6 +178,15 @@ async function AnmeldungInhalt({ params }: { params: Promise<{ id: string }> }) 
         <p className="mt-0.5 text-[15px] tabular-nums text-muted-foreground">
           {v.beginn} bis {v.ende} Uhr, {v.ort}
         </p>
+        {status === "angenommen" && (
+          <a
+            href={`/team/anmeldungen/${anmeldung.id}/termin.ics`}
+            className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+          >
+            <CalendarPlus className="size-4" aria-hidden="true" />
+            Zum Kalender hinzufügen
+          </a>
+        )}
 
         {(knapp || fehlen) && (
           <ul className="mt-5 space-y-1.5 text-sm font-medium text-note-foreground">
