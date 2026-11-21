@@ -161,6 +161,43 @@ export function mailEingang(p: { lehrkraft: string; termin: Termin; link: string
   return { betreff, text, html };
 }
 
+/** Neue private Links, wenn eine Lehrkraft den Link verloren hat. Der alte Link jeder Veranstaltung ist damit ersetzt. */
+export function mailZugangslinks(p: { eintraege: { titel: string; datum: string; link: string }[] }): MailInhalt {
+  const mehrere = p.eintraege.length > 1;
+  const betreff = mehrere ? "Ihre neuen Links zu den Anmeldungen" : "Ihr neuer Link zur Anmeldung";
+  const text = [
+    "Guten Tag,",
+    "",
+    mehrere
+      ? "Sie haben einen neuen Link zu Ihren Anmeldungen angefordert. Hier sind sie:"
+      : "Sie haben einen neuen Link zu Ihrer Anmeldung angefordert. Hier ist er:",
+    "",
+    ...p.eintraege.flatMap((e) => [`${e.titel}, ${datumLangMitWochentag(e.datum)}`, e.link, ""]),
+    "Die bisherigen Links funktionieren nicht mehr. Die neuen sind nur für Sie bestimmt. Bitte geben Sie sie nicht weiter.",
+    "",
+    "Sie haben das nicht angefordert? Dann hat jemand Ihre Adresse eingegeben. Sie müssen nichts weiter tun, nutzen Sie ab jetzt bitte die neuen Links.",
+    "",
+    "Viele Grüße",
+    "Technikteam",
+  ].join("\n");
+  const eintrag = (e: { titel: string; datum: string; link: string }) =>
+    `<div style="margin:0 0 4px;font:600 15px/1.4 ${SCHRIFT};color:${FARBE.text}">${maskiere(e.titel)}</div>` +
+    `<div style="margin:0 0 6px;font:400 14px/1.5 ${SCHRIFT};color:${FARBE.gedaempft}">${maskiere(datumLangMitWochentag(e.datum))}</div>` +
+    knopf("Anmeldung ansehen", e.link);
+  const html = rahmen({
+    vorschau: mehrere ? "Hier sind Ihre neuen privaten Links." : "Hier ist Ihr neuer privater Link.",
+    marke: { text: "Neuer Link", farbe: "eingegangen" },
+    ueberschrift: mehrere ? "Ihre neuen Links" : "Ihr neuer Link",
+    inhalt:
+      absatz(mehrere ? "Sie haben einen neuen Link zu Ihren Anmeldungen angefordert." : "Sie haben einen neuen Link zu Ihrer Anmeldung angefordert.") +
+      p.eintraege.map(eintrag).join("") +
+      absatz("Die bisherigen Links funktionieren nicht mehr. Die neuen sind nur für Sie bestimmt. Bitte geben Sie sie nicht weiter.") +
+      absatz("Sie haben das nicht angefordert? Dann hat jemand Ihre Adresse eingegeben. Sie müssen nichts weiter tun, nutzen Sie ab jetzt bitte die neuen Links."),
+    fuss: FUSS_LEHRKRAFT,
+  });
+  return { betreff, text, html };
+}
+
 const ENTSCHEIDUNG: Record<
   Entscheidung,
   { marke: string; ueberschrift: string; einleitung: (titel: string) => string; nachricht: string; schluss: string; vorschau: string; betreff: string }

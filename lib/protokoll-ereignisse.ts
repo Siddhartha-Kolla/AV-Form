@@ -23,6 +23,7 @@ export const EREIGNISSE = {
   "cli.passwort_zurueckgesetzt": { text: "Passwort über die Kommandozeile zurückgesetzt", gruppe: "konten" },
   "anmeldung.eingegangen": { text: "Anmeldung eingegangen", gruppe: "daten" },
   "anmeldung.von_lehrkraft_geaendert": { text: "Anmeldung von der Lehrkraft geändert", gruppe: "daten" },
+  "link.angefordert": { text: "Neuer Link von einer Lehrkraft angefordert", gruppe: "daten" },
   "mail.fehlgeschlagen": { text: "E-Mail an die Lehrkraft nicht verschickt", gruppe: "daten" },
   "anmeldung.angesehen": { text: "Anmeldung angesehen", gruppe: "daten" },
   "anmeldung.bearbeitet": { text: "Anmeldung bearbeitet", gruppe: "daten" },

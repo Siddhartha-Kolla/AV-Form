@@ -11,8 +11,9 @@ import { db } from "../db.ts";
 
 export const FENSTER_MINUTEN = 15;
 // "einreichung_*" bremst das öffentliche Formular: je IP-Adresse und insgesamt, jeweils pro Zeitfenster.
+// "link_*" bremst "Link verloren": je IP-Adresse, je E-Mail-Adresse und insgesamt.
 // "kalender" bremst das Abrufen eines Kalender-Links. Kalenderprogramme fragen höchstens ein paar Mal pro Stunde.
-const LIMITS = { benutzer: 5, ip: 25, einreichung_ip: 6, einreichung_alle: 40, kalender: 30 } as const;
+const LIMITS = { benutzer: 5, ip: 25, einreichung_ip: 6, einreichung_alle: 40, kalender: 30, link_ip: 5, link_email: 2, link_alle: 30 } as const;
 
 export type Versuchsschluessel = { art: keyof typeof LIMITS; wert: string };
 

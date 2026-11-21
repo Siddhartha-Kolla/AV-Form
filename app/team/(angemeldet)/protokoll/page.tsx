@@ -29,6 +29,7 @@ const DETAIL_NAMEN: Record<string, string> = {
   vorher: "Vorher",
   mitNachricht: "Mit Nachricht",
   mail: "Mail",
+  anlass: "Anlass",
   antwort: "Antwort",
   fuer: "Für",
   pflicht: "Pflicht",

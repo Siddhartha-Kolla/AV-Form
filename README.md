@@ -180,6 +180,7 @@ Lehrkräfte haben **kein Konto und kein Passwort**. Ihr Zugang ist ein Link der 
 - Mit dem Link sieht die Lehrkraft den Stand, die Nachricht des Teams, ändert Angaben und reicht Unterlagen nach. Abgelehnte und vergangene Veranstaltungen lassen sich nicht mehr ändern.
 - Die Seiten mit dem Token sind für Suchmaschinen gesperrt und geben die Adresse nicht an andere Seiten weiter.
 - Weil nur der Hash gespeichert ist, **steht der Link nur in der ersten Mail**. Spätere Mails (Entscheidung, Rückfrage) verweisen darauf.
+- **Link verloren.** Auf `/anmeldung/link-verloren` (verlinkt auf der Startseite und auf der Seite „Dieser Link ist nicht gültig“) gibt die Lehrkraft ihre E-Mail-Adresse ein und bekommt **eine Mail mit neuen Links** zu allen ihren Anmeldungen, die noch nicht vorbei sind (die nächsten 20, auch abgelehnte). Die Antwort auf der Seite ist immer dieselbe, ob es die Adresse gibt oder nicht, und die Mail geht im Hintergrund raus, damit auch die Antwortzeit nichts verrät. Die alten Links werden **erst ungültig, wenn die Mail verschickt ist**. Fällt der Mailversand aus, bleibt alles wie vorher, und der Fehler steht im Protokoll. Anfragen sind begrenzt (je Adresse 2, je IP 5, insgesamt 30 in 15 Minuten). Jede Anfrage steht im Protokoll, aber ohne die E-Mail-Adresse. Wer die Adresse einer Lehrkraft kennt, kann also deren Links ersetzen lassen, höchstens alle 15 Minuten und mit neuen Links per Mail an die Lehrkraft. Voraussetzung ist ein eingerichteter Mailversand und `APP_URL`.
 
 ### Das Team: Konten, Rollen, Entscheidung
 
@@ -280,4 +281,3 @@ In der Entwicklung (ohne `SMTP_HOST`) erscheinen die Mails samt Links im Termina
 
 - Seiten für **Datenschutzerklärung und Impressum** fehlen und gehören vor dem echten Betrieb dazu.
 - Der **Datenschutzbeauftragte** der Schule sollte Aufbewahrungsfristen und Protokoll einmal prüfen.
-- „Link verloren“: Eine Lehrkraft, die ihren Link verliert, kann ihn noch nicht selbst per Mail neu anfordern. Der Baustein dafür (`neueZugangslinks`) ist serverseitig da, die Seite fehlt.

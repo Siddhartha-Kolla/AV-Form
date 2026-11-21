@@ -258,22 +258,44 @@ export function listeAenderungen(anmeldungId: string): Aenderung[] {
   return zeilen.map(zuAenderung);
 }
 
+export type Zugangslink = { id: string; titel: string; datum: string; token: string };
+
 /**
- * "Link verloren": setzt für jede passende, noch nicht abgelaufene Anmeldung ein neues Token.
- * Der alte Link ist danach ungültig. Die Tokens gehören in eine E-Mail an die Adresse, nie in die Antwort.
+ * "Link verloren", erster Schritt: ein neues Token für jede passende, noch nicht vorbeigegangene Anmeldung (höchstens
+ * "max", die nächsten zuerst). Gespeichert wird noch nichts. Erst "uebernehmen()" entwertet die alten Links. So geht
+ * niemand leer aus, wenn die Mail mit den neuen Links nicht rausgeht.
+ * Die Tokens gehören in eine E-Mail an die Adresse, nie in eine Antwort auf der Webseite.
  */
-export function neueZugangslinks(email: string, heuteIso: string): { id: string; titel: string; token: string }[] {
+export function planeZugangslinks(
+  email: string,
+  heuteIso: string,
+  max = 20,
+): { links: Zugangslink[]; uebernehmen: () => void } {
   const hashes = emailHashes(email);
   const zeilen = db()
     .prepare(
-      `SELECT ${SPALTEN} FROM anmeldungen WHERE datum >= ? AND email_hash IN (${hashes.map(() => "?").join(",")})`,
+      `SELECT ${SPALTEN} FROM anmeldungen WHERE datum >= ? AND email_hash IN (${hashes.map(() => "?").join(",")})
+       ORDER BY datum, erstellt_am LIMIT ?`,
     )
-    .all(heuteIso, ...hashes) as Zeile[];
-  return zeilen.map((zeile) => {
-    const token = neuesToken();
-    db().prepare("UPDATE anmeldungen SET token_hash = ? WHERE id = ?").run(tokenHash(token), zeile.id);
-    return { id: zeile.id, titel: zuAnmeldung(zeile).values.titel, token };
+    .all(heuteIso, ...hashes, max) as Zeile[];
+  const links = zeilen.map((zeile) => {
+    const v = zuAnmeldung(zeile).values;
+    return { id: zeile.id, titel: v.titel, datum: v.datum, token: neuesToken() };
   });
+  return {
+    links,
+    uebernehmen: () =>
+      db().transaction(() => {
+        for (const l of links) db().prepare("UPDATE anmeldungen SET token_hash = ? WHERE id = ?").run(tokenHash(l.token), l.id);
+      })(),
+  };
+}
+
+/** Plant und übernimmt in einem Schritt. Der alte Link ist danach ungültig. */
+export function neueZugangslinks(email: string, heuteIso: string): Zugangslink[] {
+  const plan = planeZugangslinks(email, heuteIso);
+  plan.uebernehmen();
+  return plan.links;
 }
 
 /**

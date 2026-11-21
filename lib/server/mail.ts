@@ -1,5 +1,5 @@
 import "server-only";
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import { smtpEinstellungen } from "./config.ts";
 
 /*
@@ -17,9 +17,9 @@ export type MailErgebnis = "gesendet" | "nicht_konfiguriert" | "fehlgeschlagen";
 
 export type Mail = { an: string; betreff: string; text: string; html?: string };
 
-const global = globalThis as unknown as { __technikMail?: { schluessel: string; transport: nodemailer.Transporter } };
+const global = globalThis as unknown as { __technikMail?: { schluessel: string; transport: Transporter } };
 
-function transport(): nodemailer.Transporter | null {
+function transport(): Transporter | null {
   const s = smtpEinstellungen();
   if (!s) return null;
   // Der Transport wird wiederverwendet, aber neu gebaut, sobald sich die Einstellungen ändern.
